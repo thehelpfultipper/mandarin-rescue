@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#FAF9F6"/>
+  <!-- Decorative grid lines or subtle pathways -->
+  <path d="M 120,120 Q 256,60 392,120 T 392,392" fill="none" stroke="#E5E7EB" stroke-width="8" stroke-dasharray="12 8"/>
+  <path d="M 120,392 C 180,300 300,450 392,392" fill="none" stroke="#E5E7EB" stroke-width="8" stroke-dasharray="12 8"/>
+  
+  <!-- Rescue drawn route path -->
+  <path d="M 160,380 C 220,340 180,200 320,180" fill="none" stroke="#3B82F6" stroke-width="24" stroke-linecap="round"/>
+  
+  <!-- Objective node (Star) -->
+  <g transform="translate(320, 180)">
+    <circle r="36" fill="#EF4444"/>
+    <polygon points="0,-16 5,-5 16,-3 8,5 11,16 0,10 -11,16 -8,5 -16,-3 -5,-5" fill="#FAF9F6" transform="scale(1.2)"/>
+  </g>
+  
+  <!-- Actor node (Rescue character/Pawn) -->
+  <g transform="translate(160, 380)">
+    <circle r="32" fill="#10B981"/>
+    <!-- Cute figure -->
+    <circle cy="-4" r="10" fill="#FAF9F6"/>
+    <path d="M -14,20 C -14,10 14,10 14,20" fill="#FAF9F6"/>
+  </g>
+  
+  <!-- Beautiful Chinese Character representation (e.g. 救 - Jiu, meaning Rescue) -->
+  <text x="256" y="310" font-family="'Courier New', Courier, monospace, 'Microsoft YaHei'" font-size="120" font-weight="900" fill="#111827" text-anchor="middle">救</text>
+</svg>

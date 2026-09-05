@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build / output
+build/
+dist/
+dev-dist/
+coverage/
+*.tsbuildinfo
+
+# Env & secrets (keep .env.example)
+.env
+.env.*
+!.env.example
+
+# Logs & OS
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Vite / tooling caches
+.vite/
+.cache/
+.turbo/
