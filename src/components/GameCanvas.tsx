@@ -4,9 +4,13 @@ import { RotateCcw, ArrowRight, Zap, CheckCircle2, AlertTriangle, HelpCircle, Vo
 import { Level, PlayerProgress } from '../types';
 import { getVocabularyStage } from '../lib/persistence';
 import { freshBoardSeed, instantiateLevel } from '../lib/boardVariants';
+import { patrolPositionAt } from '../lib/mazeKit';
+import { orderedContactsAlongPath, pathTouchesPoint, pointToPathSegmentDistance } from '../lib/pathGeometry';
 
 /** Visual walls are ~7px thick; collision uses this radius in 0–100 board space. */
 const WALL_COLLISION_THICKNESS = 2.6;
+/** Beagle trot speed in board-units / sec (shared with patrol timing puzzle). */
+const BEAGLE_SPEED = 55;
 
 interface GameCanvasProps {
   /** Curated template — geometry is re-instantiated per attempt so memory ≠ solution. */
@@ -77,7 +81,9 @@ const GRAMMAR_DICT: Record<string, { pinyin: string; english: string; emoji?: st
   '火': { pinyin: 'huǒ', english: 'fire', emoji: '🔥' },
   '去': { pinyin: 'qù', english: 'go to' },
   '拿': { pinyin: 'ná', english: 'take / grab' },
-  '踩': { pinyin: 'cǎi', english: 'step on / flip' }
+  '踩': { pinyin: 'cǎi', english: 'step on / flip' },
+  '捕': { pinyin: 'bǔ', english: 'catcher / capture', emoji: '🚨' },
+  '员': { pinyin: 'yuán', english: 'technician / staff', emoji: '🧪' }
 };
 
 interface InteractiveClueProps {
@@ -254,6 +260,8 @@ export function GameCanvas({
     type: 'wall' | 'door' | 'hazard' | 'oneway' | 'limit' | 'missed_checkpoint' | 'wrong_target' | 'wrong_order';
   } | null>(null);
   const [payoffParticles, setPayoffParticles] = useState<{ id: number; x: number; y: number; delay: number; scale: number; emoji: string }[]>([]);
+  /** Live patrol positions (idle preview + simulation collision). */
+  const [patrolPos, setPatrolPos] = useState<Record<string, { x: number; y: number }>>({});
 
   const showPinyin = pinyinEnabled || !!level.forceAssists;
   const showTranslation = translationEnabled || !!level.forceAssists;
@@ -356,6 +364,27 @@ export function GameCanvas({
     }
   }, [playKey, actorNode?.x, actorNode?.y]);
 
+  // Keep moving patrols alive (silent-first visual threat)
+  useEffect(() => {
+    const list = level.patrols || [];
+    if (list.length === 0) {
+      setPatrolPos({});
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      const t = performance.now() / 1000;
+      const next: Record<string, { x: number; y: number }> = {};
+      for (const p of list) {
+        next[p.id] = patrolPositionAt(p.waypoints, p.speed, t, p.phase);
+      }
+      setPatrolPos(next);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [level, playKey]);
+
   // Cumulative route length of current path
   const getRouteLength = (path: { x: number; y: number }[]): number => {
     let length = 0;
@@ -414,24 +443,21 @@ export function GameCanvas({
       })
     );
 
-    for (const pt of path) {
-      for (const node of level.nodes) {
-        const d = Math.hypot(pt.x - node.x, pt.y - node.y);
-        if (d > 6.5) continue;
-        if (node.type === 'key' && !keys.includes(node.id)) keys.push(node.id);
-        if (node.type === 'switch' && !switches.includes(node.id)) {
-          switches.push(node.id);
-          const trigger = level.switches?.find(sw => sw.nodeId === node.id);
-          if (trigger && !disabledWalls.includes(trigger.targetWallId)) {
-            disabledWalls.push(trigger.targetWallId);
-          }
+    const contacts = orderedContactsAlongPath(path, level.nodes, 6.5);
+    for (const node of contacts) {
+      if (node.type === 'key' && !keys.includes(node.id)) keys.push(node.id);
+      if (node.type === 'switch' && !switches.includes(node.id)) {
+        switches.push(node.id);
+        const trigger = level.switches?.find(sw => sw.nodeId === node.id);
+        if (trigger && !disabledWalls.includes(trigger.targetWallId)) {
+          disabledWalls.push(trigger.targetWallId);
         }
-        if (node.type === 'checkpoint' && !checkpoints.includes(node.id)) {
-          checkpoints.push(node.id);
-        }
-        if (trackable.has(node.id) && !order.includes(node.id)) {
-          order.push(node.id);
-        }
+      }
+      if (node.type === 'checkpoint' && !checkpoints.includes(node.id)) {
+        checkpoints.push(node.id);
+      }
+      if (trackable.has(node.id) && !order.includes(node.id)) {
+        order.push(node.id);
       }
     }
 
@@ -593,7 +619,7 @@ export function GameCanvas({
     // 7. HAZARD PROXIMITY ALERT
     const hazards = level.nodes.filter(n => n.type === 'hazard' || level.forbiddenNodeIds.includes(n.id));
     for (const h of hazards) {
-      const distToHazard = Math.hypot(coords.x - h.x, coords.y - h.y);
+      const distToHazard = pointToPathSegmentDistance(h, lastPoint, coords);
       if (distToHazard < 6.8) {
         setHazardAlert(h.chineseChar);
       } else if (hazardAlert === h.chineseChar) {
@@ -624,7 +650,7 @@ export function GameCanvas({
     // Check if path touched any hazards / forbidden nodes
     const touchedHazard = level.nodes.find(n =>
       (n.type === 'hazard' || level.forbiddenNodeIds.includes(n.id)) &&
-      drawnPath.some(pt => Math.hypot(pt.x - n.x, pt.y - n.y) < 5.0)
+      pathTouchesPoint(drawnPath, n, 5.0)
     );
 
     if (touchedHazard) {
@@ -679,19 +705,36 @@ export function GameCanvas({
       }
       return length;
     })();
-    // ~55 board-units/sec — readable trot that still finishes long routes promptly
-    const SPEED = 55;
+    const patrols = level.patrols || [];
     let cancelled = false;
+    let hitPatrol = false;
 
     const tick = (ts: number) => {
-      if (cancelled) return;
+      if (cancelled || hitPatrol) return;
       const last = simLastTsRef.current;
       simLastTsRef.current = ts;
       const dt = last == null ? 0 : Math.min(0.05, (ts - last) / 1000);
 
-      simDistanceRef.current = Math.min(totalLen, simDistanceRef.current + SPEED * dt);
+      simDistanceRef.current = Math.min(totalLen, simDistanceRef.current + BEAGLE_SPEED * dt);
       const { x, y, done } = pointAlongPath(drawnPath, simDistanceRef.current);
       setBeaglePos({ x, y });
+
+      // Moving catchers / technicians — time your crossing
+      const clock = performance.now() / 1000;
+      for (const p of patrols) {
+        const pp = patrolPositionAt(p.waypoints, p.speed, clock, p.phase);
+        if (Math.hypot(pp.x - x, pp.y - y) < p.radius) {
+          hitPatrol = true;
+          triggerSimulationFailure(
+            x,
+            y,
+            'hazard',
+            `${p.label} (${p.chineseChar}) intercepted the route — wait for a gap in their patrol, or take a safer corridor.`,
+            'drawing'
+          );
+          return;
+        }
+      }
 
       if (done || simDistanceRef.current >= totalLen - 1e-4) {
         const end = drawnPath[drawnPath.length - 1];
@@ -710,7 +753,7 @@ export function GameCanvas({
         simRafRef.current = null;
       }
     };
-  }, [isSimulating, drawnPath]);
+  }, [isSimulating, drawnPath, level.patrols]);
 
   // Failure state handler
   const triggerSimulationFailure = (
@@ -1229,6 +1272,49 @@ export function GameCanvas({
                   <rect width="20" height="20" rx="6" fill="#1C1816" stroke="#D97706" strokeWidth="1.2" />
                   <text x="10" y="14" textAnchor="middle" className="text-[10px] select-none pointer-events-none">🔒</text>
                 </g>
+              </g>
+            );
+          })}
+
+          {/* 4b. MOVING PATROLS — catchers / technicians */}
+          {(level.patrols || []).map(p => {
+            const pos = patrolPos[p.id] || p.waypoints[0];
+            if (!pos) return null;
+            const route = [...p.waypoints, p.waypoints[0]];
+            return (
+              <g key={p.id} className="pointer-events-none">
+                <path
+                  d={`M ${route.map(w => `${toPxX(w.x)},${toPxY(w.y)}`).join(' L ')}`}
+                  fill="none"
+                  stroke="#9F1239"
+                  strokeWidth="1.5"
+                  strokeDasharray="3,4"
+                  opacity="0.35"
+                />
+                <circle
+                  cx={toPxX(pos.x)}
+                  cy={toPxY(pos.y)}
+                  r={Math.max(10, (p.radius / 100) * Math.min(dimensions.width, dimensions.height) * 0.45)}
+                  fill="rgba(190, 18, 60, 0.15)"
+                  stroke="#E11D48"
+                  strokeWidth="1.5"
+                />
+                <text
+                  x={toPxX(pos.x)}
+                  y={toPxY(pos.y) + 4}
+                  textAnchor="middle"
+                  className="text-sm select-none"
+                >
+                  {p.emoji || '🚨'}
+                </text>
+                <text
+                  x={toPxX(pos.x)}
+                  y={toPxY(pos.y) - 14}
+                  textAnchor="middle"
+                  className="fill-rose-200 text-[9px] font-bold select-none"
+                >
+                  {p.chineseChar}
+                </text>
               </g>
             );
           })}
