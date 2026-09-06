@@ -30,6 +30,13 @@ interface GameCanvasProps {
   missionFraming?: string | null;
   /** Fired when TTS actually speaks (for listening attribution). */
   onClueSpoken?: (clue: string) => void;
+  /** Opt-in: Listen can unmute for subsequent sessions. */
+  onEnableSound?: () => void;
+  /** Due review chars — shown when this mission revisits them. */
+  reviewChars?: string[];
+  /** First-run one-line draw coach. */
+  showDrawCoach?: boolean;
+  onDismissDrawCoach?: () => void;
 }
 
 const GRAMMAR_DICT: Record<string, { pinyin: string; english: string; emoji?: string }> = {
@@ -105,13 +112,12 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
   const charBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const chars = Array.from(clue);
   // Density scales with phrase length so later rooms keep a single chrome row
-  const density = chars.length <= 5 ? 'roomy' : chars.length <= 9 ? 'compact' : 'dense';
+  // Prefer readable Hanzi over packing — scroll horizontally when the phrase is long
+  const density = chars.length <= 7 ? 'roomy' : 'compact';
   const btnClass =
     density === 'roomy'
-      ? 'text-3xl px-2 min-h-[44px] min-w-[44px]'
-      : density === 'compact'
-        ? 'text-2xl px-1.5 min-h-[44px] min-w-[40px]'
-        : 'text-xl px-1 min-h-[44px] min-w-[36px]';
+      ? 'text-4xl px-2.5 min-h-[48px] min-w-[48px]'
+      : 'text-3xl px-2 min-h-[44px] min-w-[44px]';
 
   const syncScrollAffordances = () => {
     const el = scrollerRef.current;
@@ -184,7 +190,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
         )}
         <div
           ref={scrollerRef}
-          className="flex flex-nowrap items-center gap-0.5 overflow-x-auto overscroll-x-contain px-0.5 py-0 scroll-smooth snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
+          className="flex flex-nowrap items-center gap-1 overflow-x-auto overscroll-x-contain px-1 py-1 scroll-smooth snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
           role="list"
           aria-label="Mandarin clue characters. Tap a character for pinyin and meaning."
         >
@@ -319,7 +325,11 @@ export function GameCanvas({
   progress,
   adaptationRationale,
   missionFraming,
-  onClueSpoken
+  onClueSpoken,
+  onEnableSound,
+  reviewChars = [],
+  showDrawCoach = false,
+  onDismissDrawCoach
 }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const boardSlotRef = useRef<HTMLDivElement>(null);
@@ -360,6 +370,7 @@ export function GameCanvas({
   // Win/Loss Outcomes
   const [status, setStatus] = useState<'idle' | 'success' | 'failed'>('idle');
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
+  const [feedbackKind, setFeedbackKind] = useState<'language' | 'drawing' | 'success' | 'info' | null>(null);
   const [failureMarker, setFailureMarker] = useState<{
     x: number;
     y: number;
@@ -372,30 +383,33 @@ export function GameCanvas({
   const showPinyin = pinyinEnabled || !!level.forceAssists;
   const showTranslation = translationEnabled || !!level.forceAssists;
   const framingLine = missionFraming || level.missionFraming || adaptationRationale || null;
+  const revisitChars = reviewChars
+    .filter(
+      (c) =>
+        level.mandarinClue.includes(c) ||
+        level.nodes.some((n) => n.chineseChar === c || n.chineseChar.includes(c))
+    )
+    .slice(0, 3);
 
-  // Speech helper — respects mute
+  // Optional Listen only — never autoplay (silent-first)
   const speakClue = () => {
-    if (!soundEnabled) return;
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(level.mandarinClue);
-      utterance.lang = 'zh-CN';
-      utterance.rate = 0.85;
-      window.speechSynthesis.speak(utterance);
-      onClueSpoken?.(level.mandarinClue);
-    }
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(level.mandarinClue);
+    utterance.lang = 'zh-CN';
+    utterance.rate = 0.85;
+    window.speechSynthesis.speak(utterance);
+    onClueSpoken?.(level.mandarinClue);
   };
 
-  // Autoplay sound on start if enabled
+  const handleListen = () => {
+    if (!soundEnabled) onEnableSound?.();
+    speakClue();
+  };
+
   useEffect(() => {
     setShowHint(false);
-    if (soundEnabled) {
-      const timer = setTimeout(() => {
-        speakClue();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [level.id, soundEnabled]);
+  }, [level.id]);
 
   // Board fills the slot; sync SVG math to its box
   useEffect(() => {
@@ -446,6 +460,7 @@ export function GameCanvas({
     setInactiveWalls([]);
     setStatus('idle');
     setFeedbackMsg('');
+    setFeedbackKind(null);
     setFailureMarker(null);
     setPayoffParticles([]);
     setActiveDrawCoord(null);
@@ -633,15 +648,18 @@ export function GameCanvas({
       setActiveDrawCoord(coords);
       setFailureMarker(null);
       setFeedbackMsg('');
+      setFeedbackKind(null);
       setWallShockwave(null);
       setHazardAlert(null);
       evaluateInteractionsAlongPath([startPt]);
+      onDismissDrawCoach?.();
 
       if (soundEnabled && 'vibrate' in navigator) {
         navigator.vibrate(12);
       }
     } else {
-      setFeedbackMsg('Touch and draw starting from the dog (狗)!');
+      setFeedbackMsg('Start at the dog (狗), then draw toward what the clue names.');
+      setFeedbackKind('info');
     }
   };
 
@@ -673,7 +691,8 @@ export function GameCanvas({
     // 3. Check Route Energy Limit
     const currentLen = getRouteLength(drawnPath);
     if (currentLen + distToLast > routeLimit) {
-      setFeedbackMsg('Route limit reached! Your path ran out of energy. Backtrack or streamline.');
+      setFeedbackMsg('Ink ran out — shorten the route or backtrack before you commit.');
+      setFeedbackKind('drawing');
       if (soundEnabled && 'vibrate' in navigator) {
         navigator.vibrate([20, 20]);
       }
@@ -691,7 +710,8 @@ export function GameCanvas({
       const intersect = pathHitsThickBarrier(lastPoint.x, lastPoint.y, coords.x, coords.y, wall.x1, wall.y1, wall.x2, wall.y2);
       if (intersect) {
         setWallShockwave({ x: intersect.x, y: intersect.y, wallId: wall.id });
-        setFeedbackMsg('Wall barrier! Steer through the open labyrinth corridors.');
+        setFeedbackMsg('Wall — keep the ink inside the open corridors.');
+        setFeedbackKind('drawing');
         if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(15);
         return;
       }
@@ -705,7 +725,8 @@ export function GameCanvas({
       if (intersect) {
         const keyNode = level.nodes.find(n => n.id === door.keyNodeId);
         setWallShockwave({ x: intersect.x, y: intersect.y, wallId: door.id });
-        setFeedbackMsg(`Locked Gate! Collect ${keyNode?.chineseChar || '钥'} first to pass.`);
+        setFeedbackMsg(`Locked — grab ${keyNode?.chineseChar || '钥'} first, then this gate opens.`);
+        setFeedbackKind('language');
         if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(15);
         return;
       }
@@ -725,7 +746,8 @@ export function GameCanvas({
 
         if (illegal) {
           setWallShockwave({ x: intersect.x, y: intersect.y, wallId: gate.id });
-          setFeedbackMsg(`One-way Gate! You can only pass in the ${gate.allowDirection} direction.`);
+          setFeedbackMsg(`One-way — only ${gate.allowDirection} works here. Re-read the clue.`);
+          setFeedbackKind('language');
           if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(15);
           return;
         }
@@ -779,8 +801,8 @@ export function GameCanvas({
         touchedHazard.y,
         'hazard',
         isLexical
-          ? `Wrong choice: ${touchedHazard.chineseChar} does not match the Mandarin clue.`
-          : `Steer clear of ${touchedHazard.chineseChar} — keep to open corridors.`,
+          ? `「${touchedHazard.chineseChar}」 isn’t what the clue asked for — try the matching word.`
+          : `Steer clear of ${touchedHazard.chineseChar} — that corridor is a trap.`,
         isLexical ? 'language' : 'drawing',
         isLexical ? [touchedHazard.chineseChar] : []
       );
@@ -888,6 +910,7 @@ export function GameCanvas({
     setRhythmState('settlement');
     setFailureMarker({ x: fx, y: fy, type });
     setFeedbackMsg(message);
+    setFeedbackKind(errorType);
     if (soundEnabled && 'vibrate' in navigator) {
       navigator.vibrate(200);
     }
@@ -919,7 +942,8 @@ export function GameCanvas({
       setStatus('failed');
       setRhythmState('settlement');
       setFailureMarker({ x: endPt.x, y: endPt.y, type: 'limit' });
-      setFeedbackMsg('The path ended before reaching 家! Draw through the labyrinth all the way to the gate.');
+      setFeedbackMsg('Path stopped short of 家 — draw all the way to the home gate.');
+      setFeedbackKind('drawing');
       onFailure?.('drawing', []);
       setTimeout(() => {
         setRhythmState('settle');
@@ -946,7 +970,8 @@ export function GameCanvas({
         setStatus('failed');
         setRhythmState('settlement');
         setFailureMarker({ x: goalNode.x, y: goalNode.y, type: 'missed_checkpoint' });
-        setFeedbackMsg(`Missed ${node?.chineseChar || 'a step'}! Re-read the Mandarin clue and visit each required stop.`);
+        setFeedbackMsg(`Missed 「${node?.chineseChar || '…'}」 — the clue needs that stop before home.`);
+        setFeedbackKind('language');
         onFailure?.('language', node ? [node.chineseChar] : []);
         setTimeout(() => {
           setRhythmState('settle');
@@ -963,7 +988,8 @@ export function GameCanvas({
         setStatus('failed');
         setRhythmState('settlement');
         setFailureMarker({ x: goalNode.x, y: goalNode.y, type: 'wrong_order' });
-        setFeedbackMsg(`Wrong order! The clue asks for ${expected?.chineseChar || 'that step'} earlier in the path.`);
+        setFeedbackMsg(`Wrong order — hit 「${expected?.chineseChar || '…'}」 earlier, like the clue says.`);
+        setFeedbackKind('language');
         onFailure?.('language', expected ? [expected.chineseChar] : []);
         setTimeout(() => {
           setRhythmState('settle');
@@ -981,7 +1007,8 @@ export function GameCanvas({
       setStatus('failed');
       setRhythmState('settlement');
       setFailureMarker({ x: touchedForbidden.x, y: touchedForbidden.y, type: 'wrong_target' });
-      setFeedbackMsg(`Semantics mismatch! ${touchedForbidden.chineseChar} is not what the clue asks for.`);
+      setFeedbackMsg(`「${touchedForbidden.chineseChar}」 isn’t in the clue — that choice fails the rescue.`);
+      setFeedbackKind('language');
       onFailure?.('language', [touchedForbidden.chineseChar]);
       setTimeout(() => {
         setRhythmState('settle');
@@ -992,16 +1019,17 @@ export function GameCanvas({
     // 100% Success!
     setStatus('success');
     setRhythmState('rescue');
-    setFeedbackMsg(`Mission accomplished! 「${level.mandarinClue}」 — safe arrival.`);
+    setFeedbackMsg(`「${level.mandarinClue}」 — the beagle is home.`);
+    setFeedbackKind('success');
     
     // Create floating rescue payoff particles
-    const newParticles = Array.from({ length: 7 }).map((_, i) => ({
+    const newParticles = Array.from({ length: 14 }).map((_, i) => ({
       id: i,
-      x: goalNode.x + (Math.random() * 14 - 7),
-      y: goalNode.y - 5 - (Math.random() * 8),
-      delay: i * 0.12,
-      scale: 0.7 + Math.random() * 0.5,
-      emoji: ['❤️', '✨', '🐾', '🐶', '💖', '⭐'][i % 6]
+      x: goalNode.x + (Math.random() * 22 - 11),
+      y: goalNode.y - 4 - (Math.random() * 16),
+      delay: i * 0.07,
+      scale: 0.65 + Math.random() * 0.7,
+      emoji: ['❤️', '✨', '🐾', '🐶', '💖', '⭐', '🎉', '🏠'][i % 8]
     }));
     setPayoffParticles(newParticles);
 
@@ -1051,9 +1079,9 @@ export function GameCanvas({
       className="relative flex flex-col gap-2 w-full h-full max-w-md mx-auto min-h-0 overflow-hidden"
       id="game-stage-wrapper"
     >
-      {/* Mission chrome — clear hierarchy, breathing room, no stacked clutter */}
-      <div className="relative flex flex-col gap-1.5 shrink-0 z-20 pt-0.5">
-        <div className="flex items-center justify-between w-full gap-1">
+      {/* Mission chrome — clue-first; assists stay secondary; board keeps the height */}
+      <div className="relative flex flex-col gap-2 shrink-0 z-20 pt-0.5">
+        <div className="flex items-center justify-between w-full gap-2">
           <button
             type="button"
             onClick={onBackToDashboard}
@@ -1064,15 +1092,15 @@ export function GameCanvas({
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <span className="bg-stone-800/80 px-2.5 py-1 rounded-full text-stone-300 font-mono text-[10px] shrink-0">
+          <span className="bg-stone-800/80 px-2.5 py-1 rounded-full text-stone-400 font-mono text-[10px] shrink-0">
             Room {level.id.replace('lvl_', '').replace(/^0+/, '') || level.id}
           </span>
 
-          <div className="flex items-center shrink-0">
+          <div className="flex items-center shrink-0 gap-0.5">
             <button
               type="button"
               onClick={() => setShowHint(v => !v)}
-              className={`min-h-[44px] px-2.5 inline-flex items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg transition cursor-pointer ${
                 showHint ? 'text-amber-300 bg-stone-800' : 'text-stone-400 hover:text-amber-300 hover:bg-stone-800'
               }`}
               aria-expanded={showHint}
@@ -1080,8 +1108,7 @@ export function GameCanvas({
               title="Mission hint"
               id="hint-toggle-btn"
             >
-              <HelpCircle className="w-4 h-4" />
-              <span>Hint</span>
+              <HelpCircle className="w-5 h-5" />
             </button>
             {onOpenSettings && (
               <button
@@ -1091,7 +1118,7 @@ export function GameCanvas({
                 aria-label="Settings"
                 id="puzzle-settings-btn"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -1105,22 +1132,19 @@ export function GameCanvas({
           />
         </div>
 
-        {/* Assists: one compact block with spacing — not three cramped lines */}
+        {/* At most one assist stack — wrap, never truncate mid-phrase */}
         {(showPinyin || showTranslation) && (
-          <div className="w-full min-w-0 px-2 text-center space-y-0.5">
+          <div className="w-full min-w-0 px-3 text-center space-y-1">
             {showPinyin && (
-              <p className="text-[11px] text-stone-400 font-serif italic tracking-wide truncate w-full leading-snug">
+              <p className="text-sm text-stone-400 font-serif italic tracking-wide leading-relaxed">
                 {level.pinyinClue}
               </p>
             )}
             {showTranslation && (
-              <p className="text-[10px] text-stone-500 font-medium tracking-tight truncate w-full leading-snug">
+              <p className="text-xs text-stone-500 font-medium leading-relaxed">
                 {level.englishTranslation}
               </p>
             )}
-            <p className="text-[9px] text-stone-600 leading-none pt-0.5">
-              Tap characters for word-by-word meaning
-            </p>
           </div>
         )}
       </div>
@@ -1172,6 +1196,11 @@ export function GameCanvas({
                   <span className="font-bold text-amber-300 text-[10px] uppercase tracking-wide block mb-1">
                     Hint
                   </span>
+                  {revisitChars.length > 0 && (
+                    <p className="text-amber-300/90 mb-1.5 leading-snug font-semibold">
+                      This rescue revisits {revisitChars.join(' · ')}
+                    </p>
+                  )}
                   {framingLine && (
                     <p className="text-amber-200/85 mb-1 leading-snug">{framingLine}</p>
                   )}
@@ -1210,6 +1239,16 @@ export function GameCanvas({
 
         {/* Ambient garden courtyard vignette */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(10,8,7,0.75)_100%)] pointer-events-none" />
+
+        {status === 'success' && (
+          <motion.div
+            initial={{ opacity: 0.55 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+            className="absolute inset-0 pointer-events-none z-[5] bg-[radial-gradient(circle_at_center,rgba(52,211,153,0.35),transparent_65%)]"
+            aria-hidden
+          />
+        )}
 
         <svg 
           ref={svgRef}
@@ -1919,14 +1958,14 @@ export function GameCanvas({
           const leftPct = Math.min(74, Math.max(26, ax));
           return (
             <div
-              className="absolute px-2.5 py-1.5 bg-[#FAF9F6] dark:bg-[#241E1A] border border-amber-500/50 rounded-xl text-[10px] font-black text-amber-900 dark:text-amber-300 shadow-xl pointer-events-none select-none animate-bounce max-w-[9.5rem] text-center"
+              className="absolute px-2.5 py-1.5 bg-[#FAF9F6] dark:bg-[#241E1A] border border-amber-500/50 rounded-xl text-[10px] font-black text-amber-900 dark:text-amber-300 shadow-xl pointer-events-none select-none motion-safe:animate-bounce max-w-[9.5rem] text-center"
               style={{
                 left: `${leftPct}%`,
                 top: `${topPct}%`,
                 transform: nearRight ? 'translateX(-100%)' : nearLeft ? 'translateX(0)' : 'translateX(-50%)',
               }}
             >
-              DRAW FROM HERE
+              DRAW PATH · RELEASE
             </div>
           );
         })()}
@@ -1950,23 +1989,32 @@ export function GameCanvas({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             className={`p-2.5 rounded-xl border text-xs font-semibold leading-snug shadow-xl max-h-[28vh] overflow-y-auto ${
-              status === 'success' ? 'bg-emerald-950/95 border-emerald-900/40 text-emerald-300' :
-              status === 'failed' ? 'bg-rose-950/95 border-rose-900/40 text-rose-300' :
+              status === 'success' || feedbackKind === 'success' ? 'bg-emerald-950/95 border-emerald-900/40 text-emerald-300' :
+              feedbackKind === 'language' ? 'bg-rose-950/95 border-rose-800/50 text-rose-200' :
+              status === 'failed' || feedbackKind === 'drawing' ? 'bg-amber-950/95 border-amber-900/40 text-amber-200' :
               'bg-[#1C1A17]/95 border-stone-800 text-stone-300'
             }`}
             id="simulation-feedback"
           >
             <div className="flex items-start gap-2">
-              {status === 'success' ? (
+              {status === 'success' || feedbackKind === 'success' ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              ) : status === 'failed' ? (
+              ) : feedbackKind === 'language' ? (
                 <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              ) : status === 'failed' || feedbackKind === 'drawing' ? (
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               ) : (
                 <HelpCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               )}
               <div className="min-w-0">
                 <p className="font-bold text-[11px] text-stone-100">
-                  {status === 'success' ? 'Rescue Accomplished!' : status === 'failed' ? 'Rescue Impeded' : 'Corridor Guidance'}
+                  {status === 'success' || feedbackKind === 'success'
+                    ? 'Beagle home!'
+                    : feedbackKind === 'language'
+                      ? 'Wrong reading'
+                      : status === 'failed' || feedbackKind === 'drawing'
+                        ? 'Path blocked'
+                        : 'Corridor guidance'}
                 </p>
                 <p className="text-stone-400 font-normal leading-snug text-[11px] mt-0.5">{feedbackMsg}</p>
               </div>
@@ -2010,13 +2058,14 @@ export function GameCanvas({
         ) : (
           <button
             type="button"
-            onClick={speakClue}
-            disabled={!soundEnabled}
-            className="flex-1 bg-[#241F1C] hover:bg-[#2F2925] text-amber-200 border border-amber-900/30 rounded-xl py-2 text-xs font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
-            title={soundEnabled ? 'Pronounce clue' : 'Unmute in Settings to hear the clue'}
+            onClick={handleListen}
+            className="flex-1 bg-[#241F1C] hover:bg-[#2F2925] text-amber-200 border border-amber-900/30 rounded-xl py-2 text-xs font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 min-h-[44px]"
+            title={soundEnabled ? 'Pronounce clue' : 'Listen — optional audio (turns sound on)'}
+            aria-label={soundEnabled ? 'Listen to clue' : 'Listen to clue and turn sound on'}
+            id="listen-clue-btn"
           >
             <Volume2 className="w-4 h-4" />
-            <span>{soundEnabled ? 'Listen' : 'Muted'}</span>
+            <span>Listen</span>
           </button>
         )}
       </div>

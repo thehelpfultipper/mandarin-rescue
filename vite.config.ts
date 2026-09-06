@@ -5,7 +5,11 @@ import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
+  // GitHub project Pages needs e.g. VITE_BASE=/mandarin-rescue/
+  const base = process.env.VITE_BASE || '/';
+
   return {
+    base,
     plugins: [
       react(),
       tailwindcss(),

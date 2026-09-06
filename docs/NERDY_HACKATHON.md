@@ -4,7 +4,7 @@ Source: [https://hackathon.nerdy.com/](https://hackathon.nerdy.com/)
 Retrieved: 2026-09-06  
 Target prompt: **Prompt 02 — Language Learning App**
 
-This doc is the living checklist for a judge-ready Mandarin Rescue submission. Fill the **Final submission readiness** section last, after mobile/PWA layout work lands.
+This doc is the living checklist for a judge-ready Mandarin Rescue submission.
 
 ---
 
@@ -35,65 +35,102 @@ Looking for:
 
 | Judge signal | Product implication |
 |--------------|---------------------|
-| Mobile experience | Portrait-first PWA; board drawable on short phones; landscape is a rotate gate, not a broken play mode |
-| Seamless journey | Clues fully readable (no cut-off); chrome doesn’t starve the board; install/standalone feels native |
-| Pedagogical design | Hanzi + tap scaffold + optional Listen remain first-class; **silent-first** still works |
-| Demo-ready | Live URL + short phone recording of one clear mission (draw path → rescue) without UI apologizing |
+| Mobile experience | Portrait-first PWA; board drawable on short phones; landscape is a rotate gate |
+| Seamless journey | Lands on puzzle; Continue / Today’s rescue CTA; clue + draw loop |
+| Pedagogical design | Hanzi clue → action; wrong-reading vs path-blocked feedback; review-in-play line |
+| Spaced / daily practice | Due words surface as “This rescue revisits …”; Today’s rescue session ritual (no streaks) |
+| Demo-ready | Film fail-then-learn on phone; explain invisible Gemini adaptation in voiceover |
 
 ## Form fields draft
 
 - **Which prompt?** Language Learning App
-- **What did you build?** Mandarin Rescue — a mobile PWA where learners read a Mandarin clue, then draw a path through a courtyard maze to guide a beagle home. Correct language choices unlock the safe route; distractors and hazards make meaning matter.
-- **How you built it:** Client-side deterministic maze gameplay (TypeScript); adaptive learner profile in LocalStorage; optional Gemini-backed generation via server `/api/` routes; Vite + React + PWA (standalone, portrait).
+- **What did you build?** Mandarin Rescue — a mobile PWA where learners read a Mandarin clue, then draw a path through a courtyard maze to guide a beagle home. Correct language choices unlock the safe route; distractors and hazards make meaning matter. Quiet review-in-play and optional Gemini adaptation personalize the next rescue without flashcards or streaks.
+- **How you built it:** Client-side deterministic maze gameplay (TypeScript); adaptive learner profile in LocalStorage; optional Gemini-backed generation via server `/api/` routes with curated offline fallbacks; Vite + React + PWA (standalone, portrait).
 - **What you’d do next:**
+  - Kennel / multi-lab meta-progression (collectible rescues across facilities)
   - Deeper spaced-repetition scheduling across failed/succeeded phrases
+  - Character-silhouette cosmetic themes (not stroke-order drills)
   - Richer listening attribution without breaking silent-first play
-  - More curated mission arcs and accessibility polish for smaller phones
 
-## Demo script outline (2–3 min)
+## Demo script (2–3 min) — play, not slides
 
-1. **Learner problem** (15s) — Mandarin phrases feel abstract; learners need meaning tied to action.
-2. **One mission** (60–90s) — Open on a phone (portrait / installed if possible). Show clue tap scaffold, draw the path, hit a distractor or succeed, retry/next.
-3. **AI / adaptive angle** (30s) — Adaptive learner profile / assists; optional generation path.
-4. **What’s next** (20s) — Spaced repetition depth, more missions, ship-quality PWA.
+Film on a **phone in portrait** (installed PWA optional). Speak casually; never say “Duolingo” or show a slide deck.
+
+1. **Hook (10–15s)** — “Mandarin clues feel abstract until they become a path you draw.” Open the live URL; app lands on Room 1 with the draw coach.
+2. **Fun (45–60s)** — Show clue 小狗回家, tap 家 for scaffold, draw a successful path, beagle trots home (“Beagle home!”). Optional: mute to prove silent-first.
+3. **Teaches (45–60s)** — Intentionally route to a distractor (草 / 火) or wrong order on L3/L4. Call out the **Wrong reading** banner naming the character. Retry — board reshuffles.
+4. **Adaptive (20–30s)** — Map → note rescues done + “revisits …” if due → Practice another rescue. Voiceover: “Gemini tunes the next mission from struggle logs when online; curated rooms work offline.”
+5. **Close (15s)** — “Game first. Language is the win condition.” Live URL + repo.
+
+### Filming checklist
+
+- [ ] Portrait phone recording (no landscape gutter)
+- [ ] One clear language fail beat
+- [ ] One clear success juice beat
+- [ ] Mention adaptive / offline without on-screen “AI” chrome
+- [ ] Under 3 minutes
+
+---
+
+## Deploy (live demo)
+
+### GitHub Pages (recommended for this MVP)
+
+Pages serves the **static PWA** via [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml).
+
+1. Push the repo to GitHub; enable **Settings → Pages → GitHub Actions**.
+2. After the workflow runs, use `https://<user>.github.io/<repo>/` as the live demo.
+3. Curated L1–12 work without a backend.
+4. **Secrets note:** `GEMINI_API_KEY` cannot be used safely on Pages (static JS). Actions secrets do not give you a private server on Pages. Adaptive rescues fall back offline unless you later host `/api/gemini/adapt` elsewhere and set repo variable `VITE_API_BASE`.
+
+Local static check: `npm run build:pages` then serve `dist/`.
+
+### Full Node (optional, not Pages)
+
+```bash
+npm run build && NODE_ENV=production GEMINI_API_KEY=… npm start
+```
+
+Paste the public HTTPS URL into the packaging checklist below when live.
 
 ---
 
 ## Final submission readiness checklist
 
-Complete this **after** portrait PWA layout work. Mark each item Pass / Fail with a short note.
-
 ### Prompt fit
-- [x] Mobile language journey is obvious in ≤30s of play — **Pass** (tap Room → clue + draw board immediately)
-- [x] Pedagogical design visible (Hanzi clue → action on board; tap scaffold; optional Listen) — **Pass**
-- [x] Silent-first still true (muted play works without requiring audio) — **Pass** (Listen disabled when muted; drawing works)
+- [x] Mobile language journey is obvious in ≤30s of play — **Pass**
+- [x] Pedagogical design visible (Hanzi → action; wrong-reading feedback; tap scaffold) — **Pass**
+- [x] Silent-first still true — **Pass**
+- [x] Daily / review signal without flashcards — **Pass** (Today’s rescue + revisits line)
 
 ### Portrait PWA
-- [x] Manifest `orientation: portrait` — **Pass** (`dist/manifest.webmanifest`)
-- [x] Landscape shows rotate-to-portrait gate (no broken gutter layout) — **Pass** (verified 700×390)
-- [x] Installable / standalone meta present; safe areas correct (no double inset) — **Pass** (shell insets only)
-- [x] Service worker registers in production build — **Pass** (`dist/sw.js` + `registerSW.js`)
-- [x] PWA icons are properly sized (192 / 512 / maskable), not identical oversized copies — **Pass** (resized via sips)
+- [x] Manifest `orientation: portrait` — **Pass**
+- [x] Landscape rotate gate — **Pass**
+- [x] Installable / safe areas — **Pass**
+- [x] Service worker in production build — **Pass**
+- [x] PWA icons sized correctly — **Pass**
 
 ### Clue + board UX
-- [x] Longest curated phrases fully reachable / readable (horizontal scroll OK; no cut-off) — **Pass** (L12 clue scrollable; chars remain tappable)
-- [x] Board uses remaining viewport height on ≤740px-tall viewports (not chrome-starved) — **Pass** (390×700: board ~374×467 ≈ **67%** of viewport height)
-- [x] Offline toast does not cover Map / Listen — **Pass** (top banner)
+- [x] Longest curated phrases readable — **Pass**
+- [x] Board uses remaining viewport height — **Pass**
+- [x] Offline toast does not cover Map / Listen — **Pass**
+- [x] First-run draw coach + language-aware fail copy — **Pass**
 
 ### Packaging
-- [ ] Live demo URL ready — **Pending human** (deploy / share link)
+- [ ] Live demo URL ready — **Pending** (GitHub Pages workflow ready; enable Pages + paste URL)
 - [ ] Code repo ready — **Pending human** (push / ensure shareable)
-- [ ] Demo video script rehearsed (2–3 min) — **Pending human** (outline drafted above)
+- [ ] Demo video filmed (2–3 min, fail-then-learn) — **Pending human** (script above)
 - [x] Form copy drafted above still accurate — **Pass**
+- [x] Silent-first audio (muted by default; Listen opt-in; no autoplay) — **Pass**
 
 ### Status
 
 | Field | Value |
 |-------|-------|
 | Pass date | 2026-09-06 |
-| Overall | Ready to film (product/PWA layout pass; packaging links + video are human) |
-| Notes | Portrait-only play + compact chrome + flex-fill 4:5 board + SW build fix (`minify: false` / workbox development mode to avoid terser early-exit). Landscape is rotate gate only. |
+| Overall | Product ready to film; packaging links + video are human |
+| Notes | Judge loop polish landed (coach, fail kinds, kennel dashboard, review surface, win juice, adaptive maze proxy). |
 
 ---
 
-*Filling this checklist is the last implementation step for mobile-first PWA work. Recording the demo video and clicking Submit on the Nerdy form remain human steps.*
+*Recording the demo video and clicking Submit on the Nerdy form remain human steps.*

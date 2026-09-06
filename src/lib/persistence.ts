@@ -12,7 +12,8 @@ export const DEFAULT_PROGRESS: PlayerProgress = {
   drawingErrors: 0,
   listenedChars: [],
   settings: {
-    soundEnabled: true,
+    // Silent-first: audio is opt-in via Listen (never autoplay)
+    soundEnabled: false,
     pinyinToggle: true,
     translationToggle: true
   },
@@ -49,6 +50,42 @@ export function shouldUseGuidedAssists(progress: PlayerProgress): boolean {
   const mastered = Object.values(progress.adaptiveModel?.hanziToMeaning || {})
     .filter((h) => h.success >= 3).length;
   return mastered < 3;
+}
+
+const REVIEW_STALE_MS = 1000 * 60 * 30;
+const DRAW_COACH_KEY = 'mandarin_rescue_draw_coach_dismissed_v1';
+
+/**
+ * Characters due for quiet review-in-play (failed recall or stale).
+ * Used for mission chrome + adaptive preload — not a flashcard queue.
+ */
+export function getDueReviewChars(progress: PlayerProgress, limit = 6): string[] {
+  const dueFromLogs = (progress.adaptiveModel?.retentionLogs || [])
+    .filter((log) => !log.recalled || Date.now() - log.lastTestedTime > REVIEW_STALE_MS)
+    .map((log) => log.charOrPhrase);
+
+  const struggled = Object.entries(progress.vocabularyAttempts)
+    .filter(([, stats]) => stats.failure > stats.success)
+    .map(([char]) => char);
+
+  return [...new Set([...dueFromLogs, ...struggled])].slice(0, limit);
+}
+
+/** First-run gesture coach — local only, not part of adaptive progress schema. */
+export function loadDrawCoachDismissed(): boolean {
+  try {
+    return localStorage.getItem(DRAW_COACH_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveDrawCoachDismissed(): void {
+  try {
+    localStorage.setItem(DRAW_COACH_KEY, '1');
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 /**

@@ -16,7 +16,7 @@ export const DEFAULT_LEVELS: Level[] = [
     englishTranslation: 'The puppy goes home',
     hint: 'Read the destination character, then inspect each junction before drawing to Home (家).',
     forceAssists: true,
-    missionFraming: 'Learn to read the board and commit to a route through the maze.',
+    missionFraming: 'Guide the beagle home — read 家, then draw the safe corridor.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_home', type: 'goal', label: 'Home', chineseChar: '家', x: 14, y: 10, color: 'bg-emerald-500' },
@@ -60,7 +60,7 @@ export const DEFAULT_LEVELS: Level[] = [
     englishTranslation: 'The puppy goes home',
     hint: 'Find the connected route to Home (家) and keep clear of Fire (火).',
     forceAssists: true,
-    missionFraming: 'The words identify the destination; the maze still has to be solved.',
+    missionFraming: 'Same words, hotter maze — dodge 火 on the tempting shortcut.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_home', type: 'goal', label: 'Home', chineseChar: '家', x: 12, y: 10, color: 'bg-emerald-500' },
@@ -108,7 +108,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'xiān hē shuǐ zài huí jiā',
     englishTranslation: 'Drink water first, then go home',
     hint: '先…再… means first… then…: reach Water (水) before Home (家), avoiding Fire (火).',
-    missionFraming: 'New pattern: 先…再… means first… then… — and the maze enforces the order.',
+    missionFraming: 'Water first, then home — the order in the clue is the order on the path.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_water', type: 'checkpoint', label: 'Water', chineseChar: '水', x: 12, y: 48, color: 'bg-blue-500' },
@@ -158,6 +158,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'xiān chī ròu zài huí jiā',
     englishTranslation: 'Eat meat first, then go home',
     hint: 'The order is Meat (肉), then Home (家). Grass (草) is not part of the instruction.',
+    missionFraming: 'Meat, not grass — only the clue’s word opens the way home.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_meat', type: 'checkpoint', label: 'Meat', chineseChar: '肉', x: 12, y: 52, color: 'bg-amber-600' },
@@ -202,7 +203,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'bì kāi huǒ, zǒu ān quán lù',
     englishTranslation: 'Avoid the fire, take the safe path',
     hint: '避开火 means avoid Fire (火). Find a route through Safe Road (路) to Home (家).',
-    missionFraming: 'Use the Mandarin instruction and the maze structure together to find the safe route.',
+    missionFraming: 'Avoid the fire wing — the safe road is the long way that still works.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_fire', type: 'hazard', label: 'Fire', chineseChar: '火', x: 18, y: 52, color: 'bg-rose-600' },
@@ -248,6 +249,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'xiān hē shuǐ, hòu chī ròu, zài huí jiā',
     englishTranslation: 'Drink water first, then eat meat, then go home',
     hint: 'Water (水) unlocks the way to Meat (肉). Watch the Catcher (捕), then continue Home (家).',
+    missionFraming: 'Three stops in clue order — water unlocks the meat door.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 14, y: 90, color: 'bg-amber-500' },
       { id: 'n_water', type: 'key', label: 'Water', chineseChar: '水', x: 14, y: 14, color: 'bg-blue-500' },
@@ -297,6 +299,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'yòng yào shi kāi mén, bì kāi huǒ',
     englishTranslation: 'Use the key to open the door, avoid the fire',
     hint: 'Reach Key (钥) before the locked passage. Avoid Fire (火), Switch (开), and Catcher (捕).',
+    missionFraming: 'Grab the key first — the tempting east wing is a trap.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥', x: 12, y: 48, color: 'bg-yellow-500' },
@@ -348,6 +351,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'xiàng zuǒ zǒu shì shuǐ yuán, bì kāi yòu biān',
     englishTranslation: 'To the left is the water source, avoid the right side',
     hint: '向左 means go left: pass Left (左), Water (水), then Home while avoiding Right (右).',
+    missionFraming: 'Left is life — the right wing looks open but ends badly.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_left', type: 'checkpoint', label: 'Left', chineseChar: '左', x: 28, y: 74, color: 'bg-sky-500' },
@@ -399,6 +403,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'xiàng xià zǒu, tōng guò ān quán mén',
     englishTranslation: 'Go downward, pass through the safe gate',
     hint: '向下 means downward. Use the Down (下) gate, avoid Up (上), and watch the Technician (员).',
+    missionFraming: 'Only the down gate lets the beagle through — up is a decoy.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 86, y: 12, color: 'bg-amber-500' },
       { id: 'n_safe_chk', type: 'checkpoint', label: 'Gate', chineseChar: '下', x: 86, y: 48, color: 'bg-sky-500' },
@@ -446,6 +451,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'xiān ná shuǐ hé ròu, zài bì kāi huǒ huí jiā',
     englishTranslation: 'Get water and meat first, then avoid fire and go home',
     hint: 'Plan one continuous route through Water (水), Meat (肉), then Home without touching Fire (火).',
+    missionFraming: 'Collect both supplies before home — fire guards the middle lanes.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
       { id: 'n_water', type: 'checkpoint', label: 'Water', chineseChar: '水', x: 12, y: 14, color: 'bg-blue-500' },
@@ -508,6 +514,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'zǒu jié jìng, shěng néng yuán huí jiā',
     englishTranslation: 'Take the shortcut, save energy to go home',
     hint: 'Ink is scarce. Find Switch (开), wait for a patrol gap, and use the opened passage to Home.',
+    missionFraming: 'Flip the switch for the shortcut — the long way burns your ink.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 12, y: 88, color: 'bg-amber-500' },
       { id: 'n_switch', type: 'switch', label: 'Switch', chineseChar: '开', x: 12, y: 28, color: 'bg-purple-500' },
@@ -555,6 +562,7 @@ export const DEFAULT_LEVELS: Level[] = [
     pinyinClue: 'xiān ná yào shi, kāi mén bì kāi huǒ, cǎi kāi guān huí jiā',
     englishTranslation: 'Get key first, open door to avoid fire, then flip switch to go home',
     hint: 'Follow the required order: Key (钥), Switch (开), then Home. Avoid Fire (火), Meat (肉), and both patrols.',
+    missionFraming: 'Final lab breakout — key, switch, home. Ignore the meat bait.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 12, y: 14, color: 'bg-amber-500' },
       { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥', x: 12, y: 86, color: 'bg-yellow-500' },

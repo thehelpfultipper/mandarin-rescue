@@ -6,10 +6,21 @@ import {
   ChevronRight, 
   ArrowLeft, 
   Sparkles, 
-  Play
+  Play,
+  PawPrint,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { DEFAULT_LEVELS, DEFAULT_PROGRESS, loadPlayerProgress, savePlayerProgress, shouldUseGuidedAssists } from './lib/persistence';
+import {
+  DEFAULT_LEVELS,
+  DEFAULT_PROGRESS,
+  loadPlayerProgress,
+  savePlayerProgress,
+  shouldUseGuidedAssists,
+  getDueReviewChars,
+  loadDrawCoachDismissed,
+  saveDrawCoachDismissed
+} from './lib/persistence';
 import { Level, PlayerProgress } from './types';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -147,6 +158,24 @@ export default function App() {
   const [preloadedRationale, setPreloadedRationale] = useState<string | null>(null);
   const [preloadedFraming, setPreloadedFraming] = useState<string | null>(null);
   const [isPreloading, setIsPreloading] = useState(false);
+  const [showDrawCoach, setShowDrawCoach] = useState(false);
+  const [kennelOpen, setKennelOpen] = useState(false);
+
+  const dueReviewChars = getDueReviewChars(progress);
+  const rescuesCompleted = progress.completedLevelIds.length;
+  const nextCurated =
+    DEFAULT_LEVELS.find((l) => !progress.completedLevelIds.includes(l.id)) || DEFAULT_LEVELS[0];
+
+  const startTodaysRescue = () => {
+    if (selectedLevel) {
+      setCurrentView('puzzle');
+      return;
+    }
+    setSelectedLevel(nextCurated);
+    setAdaptationRationale(null);
+    setMissionFraming(nextCurated.missionFraming || null);
+    setCurrentView('puzzle');
+  };
 
   // Preload next adaptive level silently in the background
   const preloadNextAdaptiveLevel = async (currentProgress: PlayerProgress) => {
@@ -159,18 +188,14 @@ export default function App() {
         .filter(([_, stats]) => stats.failure > stats.success)
         .map(([char]) => char);
 
-      // Prefer chars due for review-in-play from retention logs (not recalled or stale)
-      const dueReview = (currentProgress.adaptiveModel?.retentionLogs || [])
-        .filter(log => !log.recalled || (Date.now() - log.lastTestedTime > 1000 * 60 * 30))
-        .map(log => log.charOrPhrase);
-
+      const dueReview = getDueReviewChars(currentProgress, 8);
       const reviewChars = [...new Set([...dueReview, ...recentlyStruggledChars])].slice(0, 8);
 
       const recentlyMasteredChars = Object.entries(currentProgress.vocabularyAttempts)
         .filter(([_, stats]) => stats.success >= stats.failure && stats.success > 0)
         .map(([char]) => char);
 
-      const res = await fetch('/api/gemini/adapt', {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE || ''}/api/gemini/adapt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -234,6 +259,7 @@ export default function App() {
     setSelectedLevel(latestUncompleted);
     setMissionFraming(latestUncompleted.missionFraming || null);
     setCurrentView('puzzle');
+    setShowDrawCoach(!loadDrawCoachDismissed());
     preloadNextAdaptiveLevel(next);
   }, []);
 
@@ -612,157 +638,66 @@ export default function App() {
         {/* VIEW 1: DASHBOARD */}
         {currentView === 'dashboard' && (
           <div className="flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-3 duration-200" id="view-dashboard">
-            
-            {/* Minimalist PWA Installation Prompt Panel */}
-            <div className="bg-[#1C1A17] border border-stone-850/60 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-stone-850 text-amber-400 rounded-xl">
-                  <Sparkles className="w-5 h-5" />
-                </div>
+
+            {/* Primary session ritual — game-first, not a lab dashboard */}
+            <div className="bg-[#1C1A17] border border-amber-900/30 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-stone-100 text-sm">Offline-Ready Rescue</h3>
-                  <p className="text-[11px] text-stone-400 mt-0.5">Install on your device for absolute persistence, smooth touch gestures, and instant load speeds.</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90">Rescue kennel</p>
+                  <h2 className="font-display font-black text-2xl text-[#FAF9F6] mt-0.5 tracking-tight">
+                    Mandarin Rescue
+                  </h2>
+                  <p className="text-xs text-stone-400 mt-1.5 leading-relaxed max-w-xs">
+                    Read the clue. Draw the path. Get the beagle home.
+                  </p>
+                </div>
+                <div className="shrink-0 text-right rounded-xl bg-[#141211] border border-stone-850 px-3 py-2">
+                  <div className="flex items-center justify-end gap-1 text-amber-300">
+                    <PawPrint className="w-3.5 h-3.5" />
+                    <span className="text-lg font-black tabular-nums">{rescuesCompleted}</span>
+                  </div>
+                  <p className="text-[9px] text-stone-500 font-semibold uppercase tracking-wide mt-0.5">
+                    Rescues done
+                  </p>
                 </div>
               </div>
-              <div className="flex gap-2 justify-end">
-                <PWAInstallButton />
-              </div>
+
+              {dueReviewChars.length > 0 && (
+                <p className="text-[11px] text-amber-200/85 bg-amber-950/25 border border-amber-900/25 rounded-xl px-3 py-2 leading-snug">
+                  Today’s path revisits {dueReviewChars.slice(0, 4).join(' · ')}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={startTodaysRescue}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-[#141211] rounded-xl py-3.5 text-sm font-black transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 shadow-lg min-h-[48px]"
+                id="continue-rescue-btn"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>{rescuesCompleted === 0 ? "Today’s rescue" : 'Continue rescue'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={consumeNextRescue}
+                className="w-full bg-stone-100/5 hover:bg-stone-100/10 text-stone-200 border border-stone-800 rounded-xl py-2.5 text-xs font-bold transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 min-h-[44px]"
+                id="next-rescue-btn"
+              >
+                <span>Practice another rescue</span>
+                <ChevronRight className="w-4 h-4 text-stone-500" />
+              </button>
             </div>
 
-            {/* ADAPTIVE LEARNER MODEL MATRIX */}
-            <div className="bg-[#1C1A17] border border-stone-850/60 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-stone-200 text-xs uppercase tracking-wider flex items-center gap-2">
-                  <Compass className="w-4 h-4 text-amber-400" />
-                  Adaptive Learner Profile Matrix
-                </h3>
-                <span className="text-[9px] bg-amber-950/45 text-amber-300 border border-amber-900/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                  Real-time State
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                {/* 1. Hanzi -> Meaning */}
-                <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                  <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Hanzi ➔ Meaning</div>
-                  <div className="text-base font-black text-stone-200 mt-1">
-                    {Object.values(progress.adaptiveModel?.hanziToMeaning || {}).filter((h: any) => h.success >= 3).length} Mastered
-                  </div>
-                  <div className="text-[10px] text-stone-400 mt-0.5 font-medium">
-                    {Object.keys(progress.adaptiveModel?.hanziToMeaning || {}).length} characters introduced
-                  </div>
-                </div>
-
-                {/* 2. Pinyin -> Meaning */}
-                <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                  <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Pinyin ➔ Meaning</div>
-                  <div className="text-base font-black text-stone-200 mt-1">
-                    {Object.values(progress.adaptiveModel?.pinyinToMeaning || {}).filter((p: any) => p.success >= 2).length} Strong
-                  </div>
-                  <div className="text-[10px] text-stone-400 mt-0.5 font-medium">
-                    {progress.settings.pinyinToggle ? 'Pinyin active (assist)' : 'Reading Hanzi independently!'}
-                  </div>
-                </div>
-
-                {/* 3. Phrase -> Action */}
-                <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                  <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Phrase ➔ Action</div>
-                  <div className="text-base font-black text-stone-200 mt-1">
-                    {Object.values(progress.adaptiveModel?.phraseToAction || {}).filter((p: any) => p.success > 0).length} Decoded
-                  </div>
-                  <div className="text-[10px] text-stone-400 mt-0.5 font-medium">
-                    Full grammar commands understood
-                  </div>
-                </div>
-
-                {/* 4. Spatial-Language Comprehension */}
-                <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                  <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Spatial Instincts</div>
-                  <div className="text-base font-black text-stone-200 mt-1">
-                    {(() => {
-                      const s = progress.adaptiveModel?.spatialComprehension || { success: 0, failure: 0 };
-                      const total = s.success + s.failure;
-                      if (total === 0) return '0%';
-                      return `${Math.round((s.success / total) * 100)}% Acc`;
-                    })()}
-                  </div>
-                  <div className="text-[10px] text-stone-400 mt-0.5 font-medium">
-                    左/右/上/下 direction accuracy
-                  </div>
-                </div>
-
-                {/* 5. Ordered-Instruction Comprehension */}
-                <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                  <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Sequential Logic</div>
-                  <div className="text-base font-black text-stone-200 mt-1">
-                    {(() => {
-                      const o = progress.adaptiveModel?.orderedComprehension || { success: 0, failure: 0 };
-                      const total = o.success + o.failure;
-                      if (total === 0) return '0%';
-                      return `${Math.round((o.success / total) * 100)}% Acc`;
-                    })()}
-                  </div>
-                  <div className="text-[10px] text-stone-400 mt-0.5 font-medium">
-                    先 / 再 / 后 command scheduling
-                  </div>
-                </div>
-
-                {/* 6. Review-in-play (honest retention, not fake SRS) */}
-                <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                  <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Review in Play</div>
-                  <div className="text-base font-black text-stone-200 mt-1">
-                    {progress.adaptiveModel?.retentionLogs?.filter(log => !log.recalled).length || 0} Due
-                  </div>
-                  <div className="text-[10px] text-stone-400 mt-0.5 font-medium">
-                    Words queued into the next rescue
-                  </div>
-                </div>
-              </div>
-
-              {/* 7. Optional Audio/Listening Knowledge */}
-              <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Optional Listening Knowledge</span>
-                  <span className="text-[8px] text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded font-black uppercase">
-                    Silent-safe
-                  </span>
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs font-black text-stone-200">
-                    {(() => {
-                      const logs = Object.values(progress.adaptiveModel?.listeningKnowledge || {}) as any[];
-                      const successes = logs.reduce((sum: number, current: any) => sum + (current?.success || 0), 0);
-                      const failures = logs.reduce((sum: number, current: any) => sum + (current?.failure || 0), 0);
-                      const total = successes + failures;
-                      if (total === 0) return '0 Audio Matches';
-                      return `${successes} Correct (${Math.round((successes / total) * 100)}% accuracy)`;
-                    })()}
-                  </span>
-                  <span className="text-[10px] text-stone-500 italic">Only counts when you hear the clue</span>
-                </div>
-              </div>
-
-              {/* Error metrics (compact) */}
-              <div className="grid grid-cols-2 gap-2 text-center text-[10px] pt-1 border-t border-stone-850">
-                <div className="text-rose-400 font-semibold">
-                  Language Errors: <span className="font-bold tabular-nums">{progress.languageErrors || 0}</span>
-                </div>
-                <div className="text-amber-300 font-semibold">
-                  Drawing Errors: <span className="font-bold tabular-nums">{progress.drawingErrors || 0}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* CURRICULUM SELECTION */}
+            {/* Room list */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold tracking-wider text-stone-500 uppercase">Curated Mission Levels</h2>
+                <h2 className="text-xs font-bold tracking-wider text-stone-500 uppercase">Courtyard rooms</h2>
                 <span className="text-xs font-semibold text-amber-300 bg-amber-950/20 border border-amber-900/20 px-2 py-1 rounded-full">
-                  {progress.completedLevelIds.length} / {DEFAULT_LEVELS.length} Completed
+                  {progress.completedLevelIds.filter((id) => DEFAULT_LEVELS.some((l) => l.id === id)).length} / {DEFAULT_LEVELS.length}
                 </span>
               </div>
 
-              {/* Levels list */}
               <div className="grid grid-cols-1 gap-3">
                 {DEFAULT_LEVELS.map((lvl) => {
                   const isCompleted = progress.completedLevelIds.includes(lvl.id);
@@ -797,23 +732,98 @@ export default function App() {
               </div>
             </div>
 
-            {/* Quiet continue practice — no AI branding */}
-            <div className="bg-[#1A1614] border border-stone-850 rounded-2xl p-5 text-center flex flex-col gap-3 items-center mt-2">
-              <div>
-                <h3 className="font-bold text-stone-200">Practice another rescue</h3>
-                <p className="text-xs text-stone-400 mt-1 max-w-xs mx-auto leading-relaxed">
-                  Continues with a mission tuned to words you recently struggled with — or the next curated room if you are offline.
-                </p>
-              </div>
+            {/* Collapsed kennel log — adaptive stats secondary */}
+            <div className="bg-[#1C1A17] border border-stone-850/60 rounded-2xl shadow-sm overflow-hidden">
               <button
                 type="button"
-                onClick={consumeNextRescue}
-                className="w-full bg-stone-100 hover:bg-stone-200 text-stone-900 rounded-xl py-3 text-sm font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-lg min-h-[44px]"
-                id="next-rescue-btn"
+                onClick={() => setKennelOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-3 p-4 text-left cursor-pointer hover:bg-stone-900/40 transition min-h-[44px]"
+                aria-expanded={kennelOpen}
+                id="kennel-log-toggle"
               >
-                <Play className="w-4 h-4 fill-stone-900" />
-                <span>Next rescue</span>
+                <span className="font-bold text-stone-200 text-xs uppercase tracking-wider flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-amber-400" />
+                  Kennel log
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="text-[10px] text-stone-500 font-semibold">
+                    {dueReviewChars.length} due · {Object.keys(progress.adaptiveModel?.hanziToMeaning || {}).length} words
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-stone-500 transition ${kennelOpen ? 'rotate-180' : ''}`} />
+                </span>
               </button>
+
+              <AnimatePresence initial={false}>
+                {kennelOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-4 flex flex-col gap-3 border-t border-stone-850/50 pt-3">
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
+                          <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Words strong</div>
+                          <div className="text-base font-black text-stone-200 mt-1">
+                            {Object.values(progress.adaptiveModel?.hanziToMeaning || {}).filter((h: { success: number }) => h.success >= 3).length}
+                          </div>
+                        </div>
+                        <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
+                          <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Review due</div>
+                          <div className="text-base font-black text-stone-200 mt-1">{dueReviewChars.length}</div>
+                        </div>
+                        <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
+                          <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Directions</div>
+                          <div className="text-base font-black text-stone-200 mt-1">
+                            {(() => {
+                              const s = progress.adaptiveModel?.spatialComprehension || { success: 0, failure: 0 };
+                              const total = s.success + s.failure;
+                              if (total === 0) return '—';
+                              return `${Math.round((s.success / total) * 100)}%`;
+                            })()}
+                          </div>
+                        </div>
+                        <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
+                          <div className="text-stone-500 font-bold uppercase tracking-wide text-[9px]">Order (先/再)</div>
+                          <div className="text-base font-black text-stone-200 mt-1">
+                            {(() => {
+                              const o = progress.adaptiveModel?.orderedComprehension || { success: 0, failure: 0 };
+                              const total = o.success + o.failure;
+                              if (total === 0) return '—';
+                              return `${Math.round((o.success / total) * 100)}%`;
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-center text-[10px] pt-1">
+                        <div className="text-rose-400 font-semibold">
+                          Language misses: <span className="font-bold tabular-nums">{progress.languageErrors || 0}</span>
+                        </div>
+                        <div className="text-amber-300 font-semibold">
+                          Path misses: <span className="font-bold tabular-nums">{progress.drawingErrors || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Install — secondary */}
+            <div className="bg-[#1C1A17] border border-stone-850/60 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-stone-850 text-amber-400 rounded-xl">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-stone-100 text-sm">Play offline</h3>
+                  <p className="text-[11px] text-stone-400 mt-0.5">Install for a phone-home feel and instant load.</p>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <PWAInstallButton />
+              </div>
             </div>
 
           </div>
@@ -837,6 +847,20 @@ export default function App() {
               adaptationRationale={adaptationRationale}
               missionFraming={missionFraming}
               onClueSpoken={handleClueSpoken}
+              onEnableSound={() => {
+                if (!progress.settings.soundEnabled) {
+                  updateProgress({
+                    ...progress,
+                    settings: { ...progress.settings, soundEnabled: true }
+                  });
+                }
+              }}
+              reviewChars={dueReviewChars}
+              showDrawCoach={showDrawCoach}
+              onDismissDrawCoach={() => {
+                saveDrawCoachDismissed();
+                setShowDrawCoach(false);
+              }}
             />
           </div>
         )}
@@ -850,8 +874,8 @@ export default function App() {
               
               <div className="flex items-center justify-between pb-3 border-b border-stone-850/40">
                 <div>
-                  <h4 className="font-bold text-stone-200 text-sm">Sound FX</h4>
-                  <p className="text-[11px] text-stone-400">Play spoken Mandarin on request</p>
+                  <h4 className="font-bold text-stone-200 text-sm">Sound</h4>
+                  <p className="text-[11px] text-stone-400">Optional — use Listen on a mission, or toggle here</p>
                 </div>
                 <button
                   type="button"
