@@ -539,16 +539,20 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#141211] text-[#FAF9F6] font-sans flex flex-col items-center selection:bg-amber-950/40">
+    <div className={`bg-[#141211] text-[#FAF9F6] font-sans flex flex-col items-center selection:bg-amber-950/40 ${currentView === 'puzzle' ? 'app-shell-puzzle' : 'min-h-screen'}`}>
       
-      {/* Mobile Scaffold Header */}
-      <header className="w-full max-w-md bg-[#141211]/90 border-b border-stone-850/60 px-4 py-3.5 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
+      {/* App chrome — hidden in landscape puzzle so the board can go full-bleed (native game pattern) */}
+      <header className={`w-full bg-[#141211]/90 border-b border-stone-850/60 px-4 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md shrink-0 ${
+        currentView === 'puzzle'
+          ? 'max-w-md landscape:hidden py-2.5'
+          : 'max-w-md py-3.5'
+      }`}>
         <div className="flex items-center gap-2">
           {currentView !== 'dashboard' ? (
             <button 
               type="button"
               onClick={() => { setCurrentView('dashboard'); setSelectedLevel(null); }}
-              className="p-1.5 rounded-full hover:bg-stone-850 text-stone-300 transition cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-stone-850 text-stone-300 transition cursor-pointer min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
               id="back-to-dashboard-btn"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -570,7 +574,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setCurrentView(currentView === 'settings' ? 'dashboard' : 'settings')}
-            className={`p-2 rounded-xl transition cursor-pointer ${currentView === 'settings' ? 'bg-stone-800 text-[#FAF9F6]' : 'text-stone-400 hover:bg-stone-850/60'}`}
+            className={`p-2 rounded-xl transition cursor-pointer min-h-[44px] min-w-[44px] inline-flex items-center justify-center ${currentView === 'settings' ? 'bg-stone-800 text-[#FAF9F6]' : 'text-stone-400 hover:bg-stone-850/60'}`}
             id="settings-toggle-btn"
           >
             <Settings className="w-5 h-5" />
@@ -578,8 +582,12 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Container — puzzle uses tighter bottom padding so CTA sits in thumb zone */}
-      <main className={`w-full max-w-md flex-1 flex flex-col min-h-0 p-4 ${currentView === 'puzzle' ? 'pb-3' : 'pb-24'}`}>
+      {/* Main — landscape puzzle is edge-to-edge playfield */}
+      <main className={`w-full flex-1 flex flex-col min-h-0 ${
+        currentView === 'puzzle'
+          ? 'max-w-md landscape:max-w-none p-3 landscape:p-0 pb-3 landscape:pb-0'
+          : 'max-w-md p-4 pb-24'
+      }`}>
         
         {/* VIEW 1: DASHBOARD */}
         {currentView === 'dashboard' && (

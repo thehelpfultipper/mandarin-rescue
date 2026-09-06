@@ -96,18 +96,18 @@ function InteractiveClue({ clue, scaffold }: InteractiveClueProps) {
   const chars = Array.from(clue);
 
   return (
-    <div className="flex flex-col items-center gap-3 w-full">
-      <div className="flex flex-wrap justify-center gap-1.5">
+    <div className="flex flex-col items-center gap-3 w-full landscape:gap-0.5 landscape:h-full landscape:min-h-0 landscape:justify-center landscape:overflow-hidden">
+      <div className="flex flex-wrap justify-center gap-1.5 landscape:flex-col landscape:flex-nowrap landscape:items-center landscape:gap-0.5 landscape:overflow-hidden">
         {chars.map((char, index) => {
           const helper = scaffold?.find(s => s.char === char) || GRAMMAR_DICT[char];
           const hasHelp = !!helper;
 
           return (
-            <div key={index} className="relative">
+            <div key={index} className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveCharIndex(activeCharIndex === index ? null : index)}
-                className={`text-3xl sm:text-4xl font-serif font-black px-2.5 py-1 rounded-xl transition duration-150 select-none ${
+                className={`text-3xl sm:text-4xl landscape:text-xl landscape:sm:text-xl font-serif font-black px-2.5 py-1 landscape:px-1.5 landscape:py-0.5 rounded-xl landscape:rounded-lg transition duration-150 select-none min-h-[44px] landscape:min-h-[36px] inline-flex items-center justify-center ${
                   hasHelp 
                     ? 'bg-stone-900/60 text-amber-100 border border-stone-700/50 hover:bg-stone-800 hover:border-amber-400/40 cursor-pointer active:scale-95' 
                     : 'text-stone-300'
@@ -122,9 +122,9 @@ function InteractiveClue({ clue, scaffold }: InteractiveClueProps) {
                     initial={{ opacity: 0, y: 5, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                    className="absolute z-50 left-1/2 -translate-x-1/2 bottom-full mb-2 bg-[#1C1A17] text-[#FAF9F6] border border-amber-900/40 rounded-xl p-3 shadow-2xl flex flex-col items-center gap-0.5 min-w-[130px] text-center"
+                    className="absolute z-50 left-1/2 -translate-x-1/2 bottom-full mb-2 landscape:left-full landscape:top-1/2 landscape:bottom-auto landscape:translate-x-0 landscape:-translate-y-1/2 landscape:ml-2 landscape:mb-0 bg-[#1C1A17] text-[#FAF9F6] border border-amber-900/40 rounded-xl p-3 shadow-2xl flex flex-col items-center gap-0.5 min-w-[130px] text-center"
                   >
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-[#1C1A17]" />
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-[#1C1A17] landscape:hidden" />
                     <span className="text-sm font-black text-amber-400 tracking-wide">{helper.pinyin}</span>
                     <span className="text-xs text-[#F4F1EA]/90 leading-tight">{helper.english}</span>
                     {helper.emoji && <span className="text-lg mt-1">{helper.emoji}</span>}
@@ -919,75 +919,131 @@ export function GameCanvas({
   const toPxY = (pct: number) => (pct / 100) * dimensions.height;
 
   return (
-    <div className="flex flex-col gap-3.5 w-full h-full max-w-md mx-auto min-h-0" id="game-stage-wrapper">
-      
-      {/* Scrollable play column — CTA stays pinned below */}
-      <div className="flex flex-col gap-3.5 flex-1 min-h-0 overflow-y-auto overscroll-contain">
-      {/* HUD Header: Clue and Pinyin/English hints */}
-      <div className="flex flex-col items-center gap-1.5 w-full text-center py-1 animate-in fade-in duration-300 shrink-0">
-        <div className="flex items-center justify-between w-full px-2 text-[10px] text-stone-500 font-semibold uppercase tracking-widest">
-          <span className="font-bold text-amber-700/80">{level.title || 'Rescue Mission'}</span>
-          <div className="flex items-center gap-1.5">
+    <div
+      className="
+        relative flex flex-col gap-3.5 w-full h-full max-w-md mx-auto min-h-0
+        landscape:max-w-none landscape:gap-2 landscape:overflow-hidden
+        landscape:grid
+        landscape:grid-cols-[minmax(7.5rem,1.05fr)_minmax(0,auto)_minmax(6.5rem,0.95fr)]
+        landscape:grid-rows-1 landscape:items-stretch
+        landscape:pl-[max(0.35rem,env(safe-area-inset-left))]
+        landscape:pr-[max(0.35rem,env(safe-area-inset-right))]
+        landscape:pt-[max(0.25rem,env(safe-area-inset-top))]
+        landscape:pb-[max(0.25rem,env(safe-area-inset-bottom))]
+      "
+      id="game-stage-wrapper"
+    >
+      {/*
+        Portrait: stacked chrome + board + sticky actions.
+        Landscape: board centered as largest square; clue uses LEFT gutter,
+        ink + controls use RIGHT gutter — never over the playfield.
+      */}
+
+      {/* Left gutter / portrait mission chrome — landscape must fit without scrolling */}
+      <div
+        className="
+          relative flex flex-col gap-2.5 shrink-0
+          landscape:col-start-1 landscape:row-start-1 landscape:min-h-0 landscape:min-w-0
+          landscape:h-full landscape:overflow-hidden landscape:justify-between landscape:gap-1 landscape:py-0.5
+        "
+      >
+      <div className="flex flex-col items-center gap-1.5 w-full text-center py-1 animate-in fade-in duration-300 shrink-0 landscape:flex-1 landscape:min-h-0 landscape:py-0 landscape:gap-1 landscape:justify-between landscape:overflow-hidden">
+        {/* Meta row: title + room + hint — one compact block, no scroll */}
+        <div className="flex items-center justify-between w-full px-2 text-[10px] text-stone-500 font-semibold uppercase tracking-widest landscape:flex-col landscape:items-stretch landscape:gap-1 landscape:px-0 landscape:shrink-0">
+          <span className="font-bold text-amber-700/80 landscape:text-amber-400/90 landscape:normal-case landscape:tracking-normal landscape:text-[10px] landscape:leading-tight landscape:text-left landscape:line-clamp-2">
+            {level.title || 'Rescue Mission'}
+          </span>
+          <div className="flex items-center gap-1.5 landscape:justify-between landscape:gap-1">
+            <span className="bg-stone-200/70 dark:bg-stone-800/60 px-2 py-0.5 rounded-full text-stone-600 dark:text-stone-400 font-mono landscape:bg-stone-800/80 landscape:text-stone-300 landscape:text-[9px] landscape:px-1.5">
+              Room {level.id.replace('lvl_', '').replace(/^0+/, '') || level.id}
+            </span>
             <button
               type="button"
               onClick={() => setShowHint(v => !v)}
-              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl text-stone-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-stone-800 transition cursor-pointer"
+              className="min-h-[44px] min-w-[44px] landscape:min-h-[36px] landscape:min-w-[36px] inline-flex items-center justify-center rounded-xl text-stone-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-stone-800 transition cursor-pointer landscape:text-amber-300/90 landscape:bg-stone-800/50 landscape:border landscape:border-stone-700/50"
               aria-expanded={showHint}
               aria-label="Show hint"
               id="hint-toggle-btn"
             >
               <HelpCircle className="w-4 h-4" />
             </button>
-            <span className="bg-stone-200/70 dark:bg-stone-800/60 px-2 py-0.5 rounded-full text-stone-600 dark:text-stone-400 font-mono">
-              Room {level.id.replace('lvl_', '').replace(/^0+/, '') || level.id}
-            </span>
           </div>
         </div>
 
+        {/* Framing stays portrait-visible; landscape lives inside the hint overlay */}
         {framingLine && (
-          <p className="text-[11px] text-amber-800/80 dark:text-amber-200/70 px-3 leading-snug max-w-sm">
+          <p className="text-[11px] text-amber-800/80 dark:text-amber-200/70 px-3 leading-snug max-w-sm landscape:hidden">
             {framingLine}
           </p>
         )}
         
-        {/* Large Crisp Mandarin Mission Clue with Interactive Character Inspector */}
-        <div className="py-1">
+        <div className="py-1 landscape:py-0 w-full landscape:flex-1 landscape:min-h-0 landscape:overflow-hidden">
           <InteractiveClue 
             clue={level.mandarinClue} 
             scaffold={level.vocabularyScaffold} 
           />
         </div>
 
-        {/* Dynamic Pinyin & English scaffolding based on player settings / intro force */}
-        <div className="flex flex-col items-center min-h-[28px] justify-center">
+        {/* Pinyin / English — clamped so the gutter never scrolls */}
+        <div className="flex flex-col items-center min-h-[28px] justify-center landscape:min-h-0 landscape:gap-0.5 landscape:w-full landscape:shrink-0">
           {showPinyin && (
-            <span className="text-sm text-stone-500 dark:text-stone-400 font-serif italic tracking-wide">
+            <span className="text-sm text-stone-500 dark:text-stone-400 font-serif italic tracking-wide landscape:text-[10px] landscape:leading-tight landscape:line-clamp-3 landscape:break-words landscape:px-0.5">
               {level.pinyinClue}
             </span>
           )}
           {showTranslation && (
-            <span className="text-xs text-stone-500 dark:text-stone-500 font-medium tracking-tight mt-0.5">
+            <span className="text-xs text-stone-500 dark:text-stone-500 font-medium tracking-tight mt-0.5 landscape:mt-0 landscape:text-[10px] landscape:text-stone-400 landscape:leading-tight landscape:line-clamp-3 landscape:break-words landscape:px-0.5">
               {level.englishTranslation}
             </span>
           )}
         </div>
 
+        {/* Portrait hint expands in-flow; landscape hint is an overlay so layout height stays fixed */}
         <AnimatePresence>
           {showHint && (
-            <motion.p
+            <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="text-[11px] text-stone-600 dark:text-stone-400 bg-amber-50/80 dark:bg-stone-900/60 border border-amber-200/60 dark:border-stone-700 rounded-xl px-3 py-2 leading-relaxed max-w-sm"
+              className="text-[11px] text-stone-600 dark:text-stone-400 bg-amber-50/80 dark:bg-stone-900/60 border border-amber-200/60 dark:border-stone-700 rounded-xl px-3 py-2 leading-relaxed max-w-sm landscape:hidden"
             >
               {level.hint}
-            </motion.p>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Path Energy Gauge */}
-      <div className="bg-[#FAF8F5] dark:bg-[#1C1A17] px-4 py-2 border border-[#E7E3DC] dark:border-stone-800 rounded-xl shadow-xs flex items-center justify-between gap-3 text-xs shrink-0">
+      <AnimatePresence>
+        {showHint && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="hidden landscape:flex absolute inset-0 z-40 flex-col gap-1.5 rounded-xl border border-amber-800/40 bg-[#1C1A17]/96 p-2.5 text-[10px] leading-snug text-stone-300 overflow-hidden"
+            role="dialog"
+            aria-label="Mission hint"
+          >
+            <div className="flex items-center justify-between gap-1 shrink-0">
+              <span className="font-bold text-amber-300 text-[10px] uppercase tracking-wide">Hint</span>
+              <button
+                type="button"
+                onClick={() => setShowHint(false)}
+                className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-stone-400 hover:text-amber-200"
+                aria-label="Close hint"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+            </div>
+            {framingLine && (
+              <p className="text-amber-200/80 shrink-0 line-clamp-3">{framingLine}</p>
+            )}
+            <p className="text-stone-300 flex-1 min-h-0 overflow-hidden">{level.hint}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ink gauge — portrait only here; landscape moves to right gutter */}
+      <div className="bg-[#FAF8F5] dark:bg-[#1C1A17] px-4 py-2 border border-[#E7E3DC] dark:border-stone-800 rounded-xl shadow-xs flex items-center justify-between gap-3 text-xs shrink-0 landscape:hidden">
         <span className="font-semibold text-stone-600 dark:text-stone-400 shrink-0 text-[11px] flex items-center gap-1.5">
           <Zap className="w-3.5 h-3.5 text-amber-500" />
           Brush Ink:
@@ -1004,11 +1060,29 @@ export function GameCanvas({
           {routeLength} / {routeLimit}m
         </span>
       </div>
+      </div>
 
-      {/* PRIMARY LABYRINTH BOARD CANVAS */}
+      {/* Board — portrait capped; landscape center column, largest square in the row */}
+      <div
+        className="
+          shrink-0
+          landscape:col-start-2 landscape:row-start-1
+          landscape:h-full landscape:min-h-0 landscape:min-w-0
+          landscape:flex landscape:items-center landscape:justify-center
+        "
+      >
       <div 
         ref={containerRef}
-        className="relative bg-[#1A1715] border-4 border-[#2F2925] rounded-2xl shadow-2xl overflow-hidden aspect-[4/5] w-full max-h-[min(58dvh,520px)] mx-auto touch-none select-none shrink-0"
+        className="
+          relative bg-[#1A1715] border-4 border-[#2F2925] rounded-2xl shadow-2xl overflow-hidden
+          aspect-[4/5] w-full max-h-[min(58dvh,520px)] mx-auto touch-none select-none shrink-0
+          landscape:mx-0 landscape:rounded-xl landscape:border-2
+          landscape:aspect-square
+          landscape:h-full
+          landscape:w-auto
+          landscape:max-h-full
+          landscape:max-w-[min(100dvh,calc(100vw-15rem))]
+        "
         id="board-field"
         style={{
           boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 12px 32px -4px rgba(0,0,0,0.4)'
@@ -1743,8 +1817,34 @@ export function GameCanvas({
       </div>
       </div>
 
-      {/* Pinned settlement + actions — always in thumb reach, no scroll required */}
-      <div className="shrink-0 sticky bottom-0 z-20 -mx-1 px-1 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] bg-[#141211]/95 backdrop-blur-md border-t border-stone-800/40 flex flex-col gap-2.5">
+      {/* Right gutter / portrait sticky actions — landscape: no scroll */}
+      <div className="
+        shrink-0 sticky bottom-0 z-20 -mx-1 px-1 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]
+        bg-[#141211]/95 backdrop-blur-md border-t border-stone-800/40 flex flex-col gap-2.5
+        landscape:static landscape:col-start-3 landscape:row-start-1
+        landscape:mx-0 landscape:px-1 landscape:py-0.5
+        landscape:bg-transparent landscape:backdrop-blur-none landscape:border-0
+        landscape:justify-between landscape:min-h-0 landscape:min-w-0 landscape:h-full landscape:overflow-hidden landscape:gap-1.5
+      ">
+      {/* Landscape ink — lives in the right blank margin */}
+      <div className="hidden landscape:flex flex-col gap-1.5 items-stretch shrink-0 rounded-xl border border-stone-700/50 bg-[#1C1A17]/90 px-2 py-2">
+        <span className="font-semibold text-stone-300 text-[9px] uppercase tracking-wider flex items-center gap-1 justify-center">
+          <Zap className="w-3 h-3 text-amber-500" />
+          Ink
+        </span>
+        <div className="w-full bg-stone-800 rounded-full h-1.5 overflow-hidden relative">
+          <div 
+            className={`h-full rounded-full transition-all duration-100 ${
+              isLengthMaxed ? 'bg-rose-500' : isLengthWarning ? 'bg-amber-500 animate-pulse' : 'bg-amber-600'
+            }`}
+            style={{ width: `${Math.min(100, (routeLength / routeLimit) * 100)}%` }}
+          />
+        </div>
+        <span className={`font-mono text-[9px] text-center font-bold ${isLengthMaxed ? 'text-rose-400' : 'text-stone-400'}`}>
+          {routeLength}/{routeLimit}
+        </span>
+      </div>
+
       {/* Contextual Failure / Success / Rationale Settlement Cards */}
       <AnimatePresence mode="wait">
         {feedbackMsg && (
@@ -1752,7 +1852,7 @@ export function GameCanvas({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className={`p-3.5 rounded-xl border text-xs font-semibold leading-relaxed shadow-xs flex flex-col gap-2.5 ${
+            className={`p-3.5 rounded-xl border text-xs font-semibold leading-relaxed shadow-xs flex flex-col gap-2.5 landscape:p-2 landscape:text-[9px] landscape:gap-1 landscape:min-h-0 landscape:overflow-hidden ${
               status === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-300' :
               status === 'failed' ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40 text-rose-900 dark:text-rose-300' :
               'bg-[#FAF8F5] dark:bg-[#1C1A17] border-[#E7E3DC] dark:border-stone-800 text-stone-800 dark:text-stone-300'
@@ -1767,16 +1867,16 @@ export function GameCanvas({
               ) : (
                 <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               )}
-              <div>
-                <p className="font-bold text-[11px] text-stone-900 dark:text-stone-200">
+              <div className="min-w-0">
+                <p className="font-bold text-[11px] text-stone-900 dark:text-stone-200 landscape:text-[9px]">
                   {status === 'success' ? 'Rescue Accomplished!' : status === 'failed' ? 'Rescue Impeded' : 'Corridor Guidance'}
                 </p>
-                <p className="text-stone-600 dark:text-stone-400 font-normal leading-normal text-[11px] mt-0.5">{feedbackMsg}</p>
+                <p className="text-stone-600 dark:text-stone-400 font-normal leading-normal text-[11px] mt-0.5 landscape:text-[9px] landscape:line-clamp-4">{feedbackMsg}</p>
               </div>
             </div>
 
             {status === 'success' && framingLine && (
-              <div className="border-t border-emerald-200 dark:border-emerald-900/30 pt-2 text-[10px] text-emerald-800 dark:text-emerald-400/90 leading-normal font-normal">
+              <div className="border-t border-emerald-200 dark:border-emerald-900/30 pt-2 text-[10px] text-emerald-800 dark:text-emerald-400/90 leading-normal font-normal landscape:hidden">
                 <span className="font-bold block text-emerald-900 dark:text-emerald-300 mb-0.5">Why this mission:</span>
                 {framingLine}
               </div>
@@ -1786,11 +1886,11 @@ export function GameCanvas({
       </AnimatePresence>
 
       {/* Control Actions Panel */}
-      <div className="flex gap-2 w-full">
+      <div className="flex gap-2 w-full landscape:flex-col landscape:items-stretch landscape:shrink-0 landscape:gap-1.5">
         <button
           type="button"
           onClick={onBackToDashboard}
-          className="flex-1 bg-[#FAF8F5] hover:bg-[#F2EFE9] dark:bg-[#1A1816] dark:hover:bg-stone-900 text-stone-700 dark:text-stone-300 rounded-xl py-3 text-xs font-bold transition active:scale-95 cursor-pointer border border-[#E7E3DC] dark:border-stone-800 flex items-center justify-center gap-2 min-h-[44px]"
+          className="flex-1 bg-[#FAF8F5] hover:bg-[#F2EFE9] dark:bg-[#1A1816] dark:hover:bg-stone-900 text-stone-700 dark:text-stone-300 rounded-xl py-3 text-xs font-bold transition active:scale-95 cursor-pointer border border-[#E7E3DC] dark:border-stone-800 flex items-center justify-center gap-2 min-h-[44px] landscape:flex-none landscape:min-h-[40px] landscape:py-2 landscape:bg-[#1A1816] landscape:border-stone-700/60 landscape:text-stone-200"
         >
           Map
         </button>
@@ -1799,7 +1899,7 @@ export function GameCanvas({
           <button
             type="button"
             onClick={status === 'success' ? onNextLevel : handleRetry}
-            className={`flex-1 rounded-xl py-3 text-xs font-bold shadow-sm transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 min-h-[44px] ${
+            className={`flex-1 rounded-xl py-3 text-xs font-bold shadow-sm transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 min-h-[44px] landscape:flex-none landscape:min-h-[40px] landscape:py-2 ${
               status === 'success' 
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
                 : 'bg-amber-600 hover:bg-amber-500 text-white'
@@ -1809,12 +1909,12 @@ export function GameCanvas({
             {status === 'success' ? (
               <>
                 <ArrowRight className="w-4 h-4" />
-                <span>Next Mission</span>
+                <span>Next</span>
               </>
             ) : (
               <>
                 <RotateCcw className="w-4 h-4" />
-                <span>Clear & Retry</span>
+                <span>Retry</span>
               </>
             )}
           </button>
@@ -1823,11 +1923,11 @@ export function GameCanvas({
             type="button"
             onClick={speakClue}
             disabled={!soundEnabled}
-            className="flex-1 bg-amber-50 dark:bg-[#241F1C] hover:bg-amber-100/70 dark:hover:bg-[#2F2925] text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/30 rounded-xl py-3 text-xs font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 bg-amber-50 dark:bg-[#241F1C] hover:bg-amber-100/70 dark:hover:bg-[#2F2925] text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/30 rounded-xl py-3 text-xs font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed landscape:flex-none landscape:min-h-[40px] landscape:py-2 landscape:bg-[#241F1C] landscape:border-amber-800/40"
             title={soundEnabled ? 'Pronounce clue' : 'Unmute in Settings to hear the clue'}
           >
             <Volume2 className="w-4 h-4" />
-            <span>{soundEnabled ? 'Pronounce' : 'Muted'}</span>
+            <span>{soundEnabled ? 'Listen' : 'Muted'}</span>
           </button>
         )}
       </div>

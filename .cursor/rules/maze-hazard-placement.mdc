@@ -1,0 +1,25 @@
+---
+description: Prevent maze/board regressions that turn hazards into decorative dead ends
+globs: src/lib/mazeGenerator.ts,src/lib/boardVariants.ts,src/lib/curatedLevels.ts,src/components/GameCanvas.tsx,tests/run-tests.ts,tests/audit-hazards.ts
+alwaysApply: false
+---
+
+# Maze & Hazard Placement
+
+When editing maze generation, board variants, curated levels, or draw/collision logic:
+
+## Required standard
+Hazards and avoid-targets must sit on **competing decoy corridors** — simple alternate paths that still reach the next required node (or L11’s long-way vs shortcut). Players must be able to *draw a plausible wrong solution* that hits them.
+
+## Do not regress to
+- Depth-1/2 cul-de-sac stubs that only “point toward” the goal
+- Late / remote branches after the journey midpoint
+- Reachable-but-ignored pockets (decorators)
+- Weakening `onCompetingPath`, corridor-length, drawable-solvability, or straight-line hard gates in `mazeGenerator.ts` just to raise generate success rate
+
+## Before finishing
+1. Keep generator hard gates intact (or strengthen them).
+2. Run `node --import tsx tests/run-tests.ts`.
+3. Prefer also `node --import tsx tests/audit-hazards.ts` (expects competing-path rate 1.0 across seeds).
+
+**Smell test:** Would a player following a convincing path to the next Mandarin target hit this hazard? If no, fix placement — do not add more stubs.

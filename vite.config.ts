@@ -17,9 +17,11 @@ export default defineConfig(() => {
           name: 'Mandarin Rescue',
           short_name: 'MandarinRescue',
           description: 'A mobile-first Mandarin learning puzzle game where drawing routes solves missions.',
-          theme_color: '#FAF9F6',
-          background_color: '#FAF9F6',
+          theme_color: '#141211',
+          background_color: '#141211',
           display: 'standalone',
+          display_override: ['standalone', 'minimal-ui'],
+          orientation: 'any',
           start_url: '/',
           scope: '/',
           icons: [

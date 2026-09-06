@@ -22,6 +22,18 @@
 * `requiredNodeIds` is an ordered sequence; visiting the right nodes in the wrong order fails.
 * Forbidden nodes and hazards are always reachable so language — not geometry alone — decides success.
 
+### 3.1 Hazard & distractor placement (non-negotiable)
+Runtime boards come from `generateMazeLevel` (`src/lib/mazeGenerator.ts`). Placement must follow **competing decoy corridors**, not decorative dead ends:
+
+| Rule | Pass | Fail (regression) |
+|------|------|-------------------|
+| Path role | Hazard lies on a simple alternate route that still reaches the next required node (false path solution) | Hazard only on a short spur / cul-de-sac players never consider |
+| Timing | Fork / attachment in the early–mid journey (not pasted near the exit) | Late remote branch after the player already knows the way |
+| Clarity | Corridor is long enough to read as a real path (`corridorLength ≥ 3`, `onCompetingPath`) | Depth-1 stub that “looks toward” the goal but never reconnects |
+| Fairness | True solution corridor stays clear; board remains drawable-solvable | Hazard blocks the intended solution or board has no drawable path |
+
+**Contrast of options** means the wrong choice is a *convincing path solution*, not a painted icon in an ignored pocket. When changing maze code, keep generator hard gates and run `tests/run-tests.ts` plus `tests/audit-hazards.ts`.
+
 ---
 
 ## 4. Audio & Accessibility

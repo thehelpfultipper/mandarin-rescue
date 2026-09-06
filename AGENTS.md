@@ -22,3 +22,14 @@ These instructions are permanent. They ensure that all edits and updates maintai
 * **Silent-First:** Level gameplay must work perfectly when muted. Do not force listening before drawing or require sound effects to understand the puzzle.
 * **Contrast of Options:** Every puzzle level must have a correct option matching the Mandarin clue, plus at least one distractor option that is also physically accessible.
 * **No Intrusive Retention Mechanics:** Do not implement hearts, lives, visual streaks, XP, coin stores, or notification modals.
+
+---
+
+## 4. Maze & Hazard Placement (Anti-Regression)
+Any change to board geometry, maze generation, walls, nodes, or distractors must preserve **meaningful** hazards. Decorative blockers are a regression.
+
+* **Competing decoy corridors (required):** Hazards and avoid-targets must sit on a *simple alternate path* between consecutive required nodes (or the L11 long-way vs shortcut corridor) — a route a player might actually draw toward the next goal. Industry path-maze practice: one correct route + decoy routes; landmarks/hazards go *on* those decoy routes ([Think Labyrinth enticements](https://www.astrolog.org/labyrnth/psych.htm); path-maze false paths).
+* **Forbidden:** Placing fire/grass/wrong targets only on short cul-de-sac stubs, sideways spurs, or late dead ends that never reconnect toward the next required stop. Those read as decoration and players ignore them.
+* **Hard gates in `mazeGenerator.ts`:** Published boards must keep `onCompetingPath`, corridor length ≥ 3, hazards clear of the true solution corridor, drawable BFS solvability, and no trivial actor→goal straight line. Do not weaken or remove these gates to “make generation easier.”
+* **When editing mazes:** If you change `mazeGenerator.ts`, `boardVariants.ts`, `curatedLevels.ts`, or collision/draw logic in `GameCanvas.tsx`, re-run `node --import tsx tests/run-tests.ts` and prefer `node --import tsx tests/audit-hazards.ts`. Do not ship maze changes while distractor pressure / competing-path checks fail.
+* **Regression smell:** “Hazard is reachable” alone is **not** enough. Ask: *Would a player following a plausible path to the next Mandarin target hit this hazard?* If no → fix placement, don’t add more stubs.
