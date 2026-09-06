@@ -103,44 +103,27 @@ interface InteractiveClueProps {
   showCoachHint?: boolean;
 }
 
+/** Punctuation / spacing in Mandarin clues — shown inline, not tappable. */
+const CLUE_PUNCT = /[，。、；：！？,\s·…—–-]/;
+/** Mission nouns get slight emphasis; grammar glue stays quieter. */
+const MISSION_NOUNS = new Set([
+  '狗', '犬', '家', '水', '肉', '草', '火', '路', '钥', '匙', '门',
+  '左', '右', '下', '上', '源', '径', '关', '捕', '员',
+]);
+
 function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveClueProps) {
   const [activeCharIndex, setActiveCharIndex] = useState<number | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ left: number; top: number; placeBelow: boolean } | null>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const scrollerRef = useRef<HTMLDivElement>(null);
   const charBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const chars = Array.from(clue);
-  // Density scales with phrase length so later rooms keep a single chrome row
-  // Prefer readable Hanzi over packing — scroll horizontally when the phrase is long
+  // Always show the full phrase: roomy on short clues, denser wrap on long ones
   const density = chars.length <= 7 ? 'roomy' : 'compact';
-  const btnClass =
+  const sizeClass =
     density === 'roomy'
-      ? 'text-4xl px-2.5 min-h-[48px] min-w-[48px]'
-      : 'text-3xl px-2 min-h-[44px] min-w-[44px]';
+      ? 'text-4xl min-h-[48px] min-w-[44px] px-1'
+      : 'text-3xl min-h-[44px] min-w-[40px] px-0.5';
 
-  const syncScrollAffordances = () => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setCanScrollLeft(el.scrollLeft > 4);
-    setCanScrollRight(max > 4 && el.scrollLeft < max - 4);
-  };
-
-  useEffect(() => {
-    syncScrollAffordances();
-    const el = scrollerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(syncScrollAffordances);
-    ro.observe(el);
-    el.addEventListener('scroll', syncScrollAffordances, { passive: true });
-    return () => {
-      ro.disconnect();
-      el.removeEventListener('scroll', syncScrollAffordances);
-    };
-  }, [clue]);
-
-  // Anchor meaning popover in viewport coords so overflow scroll parents cannot clip it
+  // Anchor meaning popover in viewport coords so chrome parents cannot clip it
   useEffect(() => {
     if (activeCharIndex === null) {
       setPopoverPos(null);
@@ -173,51 +156,56 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
 
   return (
     <div className="relative z-40 flex flex-col items-stretch gap-0.5 w-full min-w-0">
-      <div className="relative w-full min-w-0">
-        {canScrollLeft && (
-          <div
-            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-[#141211] to-transparent"
-            aria-hidden
-          />
-        )}
-        {canScrollRight && (
-          <div
-            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#141211] to-transparent flex items-center justify-end pr-0.5"
-            aria-hidden
-          >
-            <span className="text-amber-400/80 text-xs font-black">›</span>
-          </div>
-        )}
-        <div
-          ref={scrollerRef}
-          className="flex flex-nowrap justify-center items-center gap-1 overflow-x-auto overscroll-x-contain px-1 py-1 scroll-smooth snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
-          role="list"
-          aria-label="Mandarin clue characters. Tap a character for pinyin and meaning."
-        >
-          {chars.map((char, index) => {
-            const helper = scaffold?.find(s => s.char === char) || GRAMMAR_DICT[char];
-            const hasHelp = !!helper;
-
+      <div
+        className="flex flex-wrap justify-center items-center gap-x-0 gap-y-0.5 px-2 py-0.5 text-center"
+        role="group"
+        aria-label="Mandarin clue. Tap a character for pinyin and meaning."
+      >
+        {chars.map((char, index) => {
+          if (CLUE_PUNCT.test(char)) {
             return (
-              <div key={index} className="relative shrink-0 snap-center" role="listitem">
-                <button
-                  type="button"
-                  ref={el => { charBtnRefs.current[index] = el; }}
-                  onClick={() => setActiveCharIndex(activeCharIndex === index ? null : index)}
-                  aria-expanded={activeCharIndex === index}
-                  aria-label={hasHelp ? `${char}, show meaning` : char}
-                  className={`${btnClass} font-serif font-black rounded-lg transition duration-150 select-none inline-flex items-center justify-center ${
-                    hasHelp
-                      ? 'bg-stone-900/60 text-amber-100 border border-stone-700/50 hover:bg-stone-800 hover:border-amber-400/40 cursor-pointer active:scale-95'
-                      : 'text-stone-300'
-                  } ${activeCharIndex === index && hasHelp ? 'border-amber-400/70 bg-stone-800' : ''}`}
-                >
-                  {char}
-                </button>
-              </div>
+              <span
+                key={index}
+                className={`${density === 'roomy' ? 'text-3xl' : 'text-2xl'} text-stone-500 font-serif px-0.5 leading-none select-none`}
+                aria-hidden
+              >
+                {char}
+              </span>
             );
-          })}
-        </div>
+          }
+
+          const helper = scaffold?.find(s => s.char === char) || GRAMMAR_DICT[char];
+          const hasHelp = !!helper;
+          const isMission =
+            MISSION_NOUNS.has(char) || !!helper?.emoji || !!scaffold?.some(s => s.char === char);
+          const isActive = activeCharIndex === index && hasHelp;
+
+          return (
+            <button
+              key={index}
+              type="button"
+              ref={el => { charBtnRefs.current[index] = el; }}
+              onClick={() => {
+                if (!hasHelp) return;
+                setActiveCharIndex(activeCharIndex === index ? null : index);
+              }}
+              aria-expanded={hasHelp ? activeCharIndex === index : undefined}
+              aria-label={hasHelp ? `${char}, show meaning` : char}
+              tabIndex={hasHelp ? 0 : -1}
+              className={`${sizeClass} font-serif inline-flex items-center justify-center rounded-md transition duration-150 select-none leading-none ${
+                hasHelp
+                  ? `cursor-pointer active:scale-95 ${
+                      isMission
+                        ? 'text-amber-100 font-black hover:bg-amber-400/10'
+                        : 'text-stone-200/90 font-bold hover:bg-stone-800/50'
+                    }`
+                  : 'text-stone-400 font-semibold cursor-default'
+              } ${isActive ? 'bg-amber-400/15 text-amber-50 ring-1 ring-amber-400/40' : ''}`}
+            >
+              {char}
+            </button>
+          );
+        })}
       </div>
 
       {showCoachHint && (
@@ -226,7 +214,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
         </p>
       )}
 
-      {/* Fixed-layer popover — escapes overflow clipping from the clue scroller */}
+      {/* Fixed-layer popover — escapes overflow clipping from mission chrome */}
       {activeCharIndex !== null && activeHelper && popoverPos && (
         <>
           <div
