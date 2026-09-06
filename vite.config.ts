@@ -12,6 +12,8 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
+        // Avoid workbox+terser early-exit hangs on some Node environments
+        minify: false,
         manifest: {
           id: '/',
           name: 'Mandarin Rescue',
@@ -21,7 +23,7 @@ export default defineConfig(() => {
           background_color: '#141211',
           display: 'standalone',
           display_override: ['standalone', 'minimal-ui'],
-          orientation: 'any',
+          orientation: 'portrait',
           start_url: '/',
           scope: '/',
           icons: [
@@ -47,6 +49,7 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          mode: 'development',
         },
         devOptions: {
           enabled: true,

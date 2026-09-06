@@ -10,25 +10,46 @@ body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 0;
   background: #141211;
-  /* Safe areas for notched phones / landscape PWA chrome */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Safe areas applied on puzzle shell / docks — avoid shrinking all views twice */
+  padding: 0;
 }
 
 .font-display {
   font-family: 'Playfair Display', Georgia, serif;
 }
 
-/* Puzzle immersion: lock to the dynamic viewport so landscape can expand the board */
+/* Puzzle immersion: lock to the dynamic viewport */
 .app-shell-puzzle {
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  touch-action: manipulation;
 }
 
-@media (orientation: landscape) {
-  .app-shell-puzzle {
-    /* Full-bleed playfield — match native landscape puzzle games */
-    padding-left: 0;
-    padding-right: 0;
+/* Non-puzzle pages still respect notches without double-counting puzzle insets */
+.app-shell-default {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+/* Portrait-only play: landscape is a rotate gate, not a second layout */
+.rotate-portrait-gate {
+  display: none;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .app-shell-puzzle .puzzle-play-root {
+    display: none !important;
+  }
+
+  .app-shell-puzzle .rotate-portrait-gate {
+    display: flex;
   }
 }

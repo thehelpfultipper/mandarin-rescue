@@ -539,19 +539,23 @@ export default function App() {
   };
 
   return (
-    <div className={`bg-[#141211] text-[#FAF9F6] font-sans flex flex-col items-center selection:bg-amber-950/40 ${currentView === 'puzzle' ? 'app-shell-puzzle' : 'min-h-screen'}`}>
+    <div className={`bg-[#141211] text-[#FAF9F6] font-sans flex flex-col items-center selection:bg-amber-950/40 ${currentView === 'puzzle' ? 'app-shell-puzzle' : 'min-h-screen app-shell-default'}`}>
       
-      {/* App chrome — hidden in landscape puzzle so the board can go full-bleed (native game pattern) */}
-      <header className={`w-full bg-[#141211]/90 border-b border-stone-850/60 px-4 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md shrink-0 ${
-        currentView === 'puzzle'
-          ? 'max-w-md landscape:hidden py-2.5'
-          : 'max-w-md py-3.5'
-      }`}>
+      {/* App chrome — hidden on puzzle so GameCanvas owns the compact mission header */}
+      {currentView !== 'puzzle' && (
+      <header className="w-full bg-[#141211]/90 border-b border-stone-850/60 px-4 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md shrink-0 max-w-md py-3.5">
         <div className="flex items-center gap-2">
           {currentView !== 'dashboard' ? (
             <button 
               type="button"
-              onClick={() => { setCurrentView('dashboard'); setSelectedLevel(null); }}
+              onClick={() => {
+                if (currentView === 'settings' && selectedLevel) {
+                  setCurrentView('puzzle');
+                  return;
+                }
+                setCurrentView('dashboard');
+                setSelectedLevel(null);
+              }}
               className="p-1.5 rounded-full hover:bg-stone-850 text-stone-300 transition cursor-pointer min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
               id="back-to-dashboard-btn"
             >
@@ -581,11 +585,27 @@ export default function App() {
           </button>
         </div>
       </header>
+      )}
 
-      {/* Main — landscape puzzle is edge-to-edge playfield */}
+      {/* Landscape rotate gate — portrait-only play on phones */}
+      {currentView === 'puzzle' && (
+        <div
+          className="rotate-portrait-gate flex-col items-center justify-center gap-3 text-center px-8 w-full h-full max-w-md"
+          role="status"
+          aria-live="polite"
+        >
+          <Compass className="w-10 h-10 text-amber-400" />
+          <p className="font-display font-bold text-xl text-[#FAF9F6]">Rotate to portrait</p>
+          <p className="text-sm text-stone-400 leading-relaxed max-w-xs">
+            Mandarin Rescue is built for portrait play — rotate your phone to continue drawing the rescue path.
+          </p>
+        </div>
+      )}
+
+      {/* Main — puzzle is edge-tight so the board can claim leftover height */}
       <main className={`w-full flex-1 flex flex-col min-h-0 ${
         currentView === 'puzzle'
-          ? 'max-w-md landscape:max-w-none p-3 landscape:p-0 pb-3 landscape:pb-0'
+          ? 'puzzle-play-root max-w-md px-2 pt-2 pb-2'
           : 'max-w-md p-4 pb-24'
       }`}>
         
@@ -808,6 +828,7 @@ export default function App() {
               onSuccess={handleLevelCompletion}
               onFailure={handleLevelFailure}
               onBackToDashboard={() => { setCurrentView('dashboard'); setSelectedLevel(null); }}
+              onOpenSettings={() => setCurrentView('settings')}
               onNextLevel={handleAdvanceLevel}
               soundEnabled={progress.settings.soundEnabled}
               pinyinEnabled={progress.settings.pinyinToggle}
