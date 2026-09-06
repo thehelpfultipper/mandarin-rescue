@@ -26,10 +26,9 @@ jobs:
       - run: npm ci
       - name: Build static PWA
         env:
-          # Project Pages base path: /<repo>/
           VITE_BASE: /${{ github.event.repository.name }}/
-          # Optional: point adaptive rescues at a separate API host (never bake GEMINI into the client)
-          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          # Supabase Edge Function URL (set as Actions secret or variable)
+          VITE_ADAPT_URL: ${{ secrets.VITE_ADAPT_URL }}
         run: npm run build:pages
       - name: SPA fallback for GitHub Pages
         run: cp dist/index.html dist/404.html

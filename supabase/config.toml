@@ -1,0 +1,6 @@
+# https://supabase.com/docs/guides/functions
+# Deploy adapt: supabase functions deploy adapt --no-verify-jwt
+# Secret:      supabase secrets set GEMINI_API_KEY=your_key
+
+[functions.adapt]
+verify_jwt = false

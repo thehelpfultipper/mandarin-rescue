@@ -2,15 +2,11 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 import { GeminiAdaptationResponseSchema } from './src/types.js';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -393,6 +389,43 @@ function sanitizeGeminiOutput(data: any): any {
   if (!lvl.pinyinClue) lvl.pinyinClue = 'gǒu huí jiā xiān hē shuǐ';
   if (!lvl.englishTranslation) lvl.englishTranslation = 'The dog goes home and drinks water first';
   if (!lvl.hint) lvl.hint = 'Draw a line connecting the Chinese characters.';
+
+  // Closed dictionary: Gemini often injects filler (好/的/了/吗…) which fails STAGE 2 vocab checks.
+  // Strip those from the clue before validation so otherwise-good boards are not discarded.
+  if (typeof lvl.mandarinClue === 'string') {
+    const before = lvl.mandarinClue;
+    const filtered = Array.from(before)
+      .filter(
+        (char: string) =>
+          PUNCTUATION_AND_SYMBOLS.has(char) || /\s/.test(char) || APPROVED_VOCAB_CHARS.has(char)
+      )
+      .join('');
+    if (filtered !== before) {
+      const removed = [
+        ...new Set(
+          Array.from(before).filter(
+            (c) =>
+              !PUNCTUATION_AND_SYMBOLS.has(c) && !/\s/.test(c) && !APPROVED_VOCAB_CHARS.has(c)
+          )
+        )
+      ].join('');
+      console.warn(`[sanitize] Stripped unapproved clue char(s) "${removed}": "${before}" → "${filtered}"`);
+      lvl.mandarinClue = filtered.length > 0 ? filtered : '狗回家';
+    }
+  }
+
+  // Keep scaffolding inside the same closed set (single-char entries only).
+  const keepApprovedScaffold = (arr: any[]) =>
+    arr.filter(
+      (item: any) =>
+        item &&
+        typeof item.char === 'string' &&
+        (item.char.length > 1
+          ? [...item.char].every((c: string) => APPROVED_VOCAB_CHARS.has(c) || PUNCTUATION_AND_SYMBOLS.has(c))
+          : APPROVED_VOCAB_CHARS.has(item.char) || PUNCTUATION_AND_SYMBOLS.has(item.char))
+    );
+  plan.scaffolding = keepApprovedScaffold(plan.scaffolding);
+  lvl.vocabularyScaffold = keepApprovedScaffold(lvl.vocabularyScaffold);
 
   // 3. Sanitize nodes and their types
   if (Array.isArray(lvl.nodes)) {
@@ -1070,7 +1103,9 @@ Adaptive Learner Profile Matrix:
     let response;
     let attempts = 0;
     const maxAttempts = 3;
-    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
+    // Free-tier (unbilled) order: Lite models first (higher RPM/RPD), then mid Flash.
+    // Avoid gemini-3.8-flash / gemini-flash-latest as early fallbacks — tight free quotas + 503 capacity spikes.
+    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.5-flash'];
 
     while (attempts < maxAttempts) {
       try {
@@ -1107,7 +1142,7 @@ Your tasks:
    - Distractor nodes must have different Chinese characters (e.g. if target is Meat '肉', add grass '草' or water '水' elsewhere as a physical distractor).
    - "requiredNodeIds" must list the exact sequence to reach goal, starting with "n_actor", followed by intermediate checkpoints, and ending with "n_home".
    - "forbiddenNodeIds" must contain hazards or distractors.
-4. Keep the Mandarin clue (mandarinClue) concise, using approved vocabulary and natural punctuation like "，":
+4. Keep the Mandarin clue (mandarinClue) concise. HARD RULE — every Hanzi in mandarinClue MUST appear in this closed Dictionary (punctuation ，。 allowed). Do NOT invent filler like 好/的/了/吗/吧/呢/很/要/请:
    - Dictionary: ['小', '狗', '猫', '兔', '鸟', '回', '家', '先', '喝', '水', '再', '吃', '肉', '草', '避', '开', '走', '安', '全', '路', '后', '用', '钥', '匙', '门', '向', '左', '右', '下', '上', '通', '过', '和', '捷', '径', '省', '能', '机', '关', '火', '去', '拿', '踩', '，', '。']
    - Make sure your clue matches the grammar targeted by your template.
    - Translate accurately in englishTranslation.
@@ -1305,22 +1340,37 @@ Return EXACTLY a Zod-parsable JSON object matching the requested schema. Do NOT 
       parsedData = sanitizeGeminiOutput(parsedData);
       // Run the robust 6-Stage Validation Engine on Gemini's output
       if (validateLevelPlan(parsedData)) {
-        console.log(`✅ Gemini level generation succeeded verification! ID: ${parsedData.suggestedLevel.id}`);
+        console.log(
+          `✅ Serving AI director level id=${parsedData.suggestedLevel.id} (Gemini passed validation)`
+        );
         return res.json(parsedData);
-      } else {
-        console.warn('❌ Gemini level failed validation. Triggering fallback level.');
       }
+      console.warn(
+        '❌ Gemini JSON failed validation — this request will serve a handcrafted fallback (not AI).'
+      );
+    } else if (!response?.text) {
+      console.warn(
+        '❌ Gemini returned no usable response after retries — this request will serve a handcrafted fallback (not AI).'
+      );
     }
 
     // Fallback selection based on history
     const fallbackIdx = (completedLevelCount || 0) % FALLBACK_LEVELS.length;
-    res.json(FALLBACK_LEVELS[fallbackIdx]);
+    const fallbackPayload = FALLBACK_LEVELS[fallbackIdx];
+    console.log(
+      `📦 Serving director FALLBACK id=${fallbackPayload.suggestedLevel.id} (player still gets a playable rescue; not personalized Gemini output)`
+    );
+    res.json(fallbackPayload);
 
   } catch (error: any) {
     console.error('Gemini adaptation API error:', error);
     // Silent Fallback selection: Never show AI loading or errors to the player
     const fallbackIdx = Math.floor(Math.random() * FALLBACK_LEVELS.length);
-    res.json(FALLBACK_LEVELS[fallbackIdx]);
+    const fallbackPayload = FALLBACK_LEVELS[fallbackIdx];
+    console.log(
+      `📦 Serving director FALLBACK id=${fallbackPayload.suggestedLevel.id} (exception path; not AI)`
+    );
+    res.json(fallbackPayload);
   }
 });
 

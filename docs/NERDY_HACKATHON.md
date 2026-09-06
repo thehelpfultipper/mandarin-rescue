@@ -45,7 +45,7 @@ Looking for:
 
 - **Which prompt?** Language Learning App
 - **What did you build?** Mandarin Rescue — a mobile PWA where learners read a Mandarin clue, then draw a path through a courtyard maze to guide a beagle home. Correct language choices unlock the safe route; distractors and hazards make meaning matter. Quiet review-in-play and optional Gemini adaptation personalize the next rescue without flashcards or streaks.
-- **How you built it:** Client-side deterministic maze gameplay (TypeScript); adaptive learner profile in LocalStorage; optional Gemini-backed generation via server `/api/` routes with curated offline fallbacks; Vite + React + PWA (standalone, portrait).
+- **How you built it:** Client-side deterministic maze gameplay (TypeScript); silent pedagogical director (Gemini) on a Supabase Edge Function with handcrafted fallbacks when offline or invalid; adaptive learner profile in LocalStorage; Vite + React + GitHub Pages PWA (portrait).
 - **What you’d do next:**
   - Kennel / multi-lab meta-progression (collectible rescues across facilities)
   - Deeper spaced-repetition scheduling across failed/succeeded phrases
@@ -74,22 +74,22 @@ Film on a **phone in portrait** (installed PWA optional). Speak casually; never 
 
 ## Deploy (live demo)
 
-### GitHub Pages (recommended for this MVP)
+### GitHub Pages + Supabase director (recommended)
 
-Pages serves the **static PWA** via [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml).
+1. **Edge Function (Gemini key stays server-side)** — see [docs/AI.md](AI.md):
+   ```bash
+   supabase secrets set GEMINI_API_KEY=your_key
+   supabase functions deploy adapt --no-verify-jwt
+   ```
+2. Set GitHub Actions secret `VITE_ADAPT_URL` to  
+   `https://<project-ref>.supabase.co/functions/v1/adapt`
+3. Push repo; enable **Settings → Pages → GitHub Actions**.
+4. Live demo: `https://<user>.github.io/<repo>/`
 
-1. Push the repo to GitHub; enable **Settings → Pages → GitHub Actions**.
-2. After the workflow runs, use `https://<user>.github.io/<repo>/` as the live demo.
-3. Curated L1–12 work without a backend.
-4. **Secrets note:** `GEMINI_API_KEY` cannot be used safely on Pages (static JS). Actions secrets do not give you a private server on Pages. Adaptive rescues fall back offline unless you later host `/api/gemini/adapt` elsewhere and set repo variable `VITE_API_BASE`.
+The AI director is **always on** in the product loop (silent preload → next rescue). If the function/key/network fails, **handcrafted fallbacks** still return — no player-facing toggle.
 
-Local static check: `npm run build:pages` then serve `dist/`.
-
-### Full Node (optional, not Pages)
-
-```bash
-npm run build && NODE_ENV=production GEMINI_API_KEY=… npm start
-```
+Local static check: `npm run build:pages` then serve `dist/`.  
+Local full stack: `npm run dev` (Express `/api/gemini/adapt` + `.env` key).
 
 Paste the public HTTPS URL into the packaging checklist below when live.
 

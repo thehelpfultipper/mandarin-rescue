@@ -26,6 +26,7 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { GameCanvas } from './components/GameCanvas';
+import { adaptEndpoint } from './lib/adaptClient';
 
 const GRAMMAR_DICT: Record<string, { pinyin: string; english: string; emoji?: string }> = {
   '小': { pinyin: 'xiǎo', english: 'small / little' },
@@ -195,7 +196,7 @@ export default function App() {
         .filter(([_, stats]) => stats.success >= stats.failure && stats.success > 0)
         .map(([char]) => char);
 
-      const res = await fetch(`${import.meta.env.VITE_API_BASE || ''}/api/gemini/adapt`, {
+      const res = await fetch(adaptEndpoint(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -681,11 +682,16 @@ export default function App() {
               <button
                 type="button"
                 onClick={consumeNextRescue}
-                className="w-full bg-stone-100/5 hover:bg-stone-100/10 text-stone-200 border border-stone-800 rounded-xl py-2.5 text-xs font-bold transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 min-h-[44px]"
+                className="w-full bg-stone-100/5 hover:bg-stone-100/10 text-stone-200 border border-stone-800 rounded-xl py-2.5 text-xs font-bold transition active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center gap-0.5 min-h-[44px] px-3"
                 id="next-rescue-btn"
               >
-                <span>Practice another rescue</span>
-                <ChevronRight className="w-4 h-4 text-stone-500" />
+                <span className="flex items-center gap-2">
+                  <span>Practice another rescue</span>
+                  <ChevronRight className="w-4 h-4 text-stone-500" />
+                </span>
+                <span className="text-[10px] font-medium text-stone-500 normal-case tracking-normal">
+                  Next mission follows how you play — offline rooms if the network’s out
+                </span>
               </button>
             </div>
 
@@ -817,8 +823,10 @@ export default function App() {
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-stone-100 text-sm">Play offline</h3>
-                  <p className="text-[11px] text-stone-400 mt-0.5">Install for a phone-home feel and instant load.</p>
+                  <h3 className="font-bold text-stone-100 text-sm">Install for phone play</h3>
+                  <p className="text-[11px] text-stone-400 mt-0.5 leading-relaxed">
+                    Home-screen app on iOS or Android — same rescues, fuller screen.
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2 justify-end">

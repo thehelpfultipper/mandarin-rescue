@@ -190,7 +190,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
         )}
         <div
           ref={scrollerRef}
-          className="flex flex-nowrap items-center gap-1 overflow-x-auto overscroll-x-contain px-1 py-1 scroll-smooth snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
+          className="flex flex-nowrap justify-center items-center gap-1 overflow-x-auto overscroll-x-contain px-1 py-1 scroll-smooth snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
           role="list"
           aria-label="Mandarin clue characters. Tap a character for pinyin and meaning."
         >

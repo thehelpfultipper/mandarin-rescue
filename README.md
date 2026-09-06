@@ -1,52 +1,48 @@
 # Mandarin Rescue
 
-A mobile-first Mandarin learning puzzle game where drawing routes solves rescue missions. Gameplay is deterministic client-side TypeScript; optional Gemini adaptation runs only on a server API (never in the browser).
+A mobile-first Mandarin learning puzzle game where drawing routes solves rescue missions. Gameplay is deterministic client-side TypeScript. An intentional **AI director** (Gemini) curates later rescues on the server/edge; handcrafted fallbacks always keep play going — there is no player “enable AI” toggle.
 
 ## Run locally
 
 **Prerequisites:** Node.js 20+
 
 1. `npm install`
-2. Copy [`.env.example`](.env.example) to `.env` and set `GEMINI_API_KEY` (only needed for adaptive rescues after the curated arc).
+2. Copy [`.env.example`](.env.example) → `.env` and set `GEMINI_API_KEY` (director); without it, fallbacks still work.
 3. `npm run dev` → [http://localhost:3000](http://localhost:3000)
 
-## Deploy (GitHub Pages)
+## Deploy
 
-GitHub Pages hosts the **static PWA** only. It cannot run `server.ts` or keep `GEMINI_API_KEY` secret at runtime.
-
-- Curated rooms L1–12 + offline fallbacks work on Pages as-is.
-- Adaptive “Practice another rescue” needs a separate API host; set repo variable `VITE_API_BASE` (e.g. `https://your-api.example.com`) if you add one. **Do not** put the Gemini key in Actions secrets for a client build.
-
-Workflow: [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)  
-Enable **Settings → Pages → Source: GitHub Actions**, push to `main`, then use the Pages URL in the Nerdy form.
-
-Local static smoke:
+### 1. Supabase Edge Function (adaptive director)
 
 ```bash
-VITE_BASE=/ npm run build:pages
-npx --yes serve dist
+supabase login
+supabase link --project-ref <your-ref>
+supabase secrets set GEMINI_API_KEY=your_key
+supabase functions deploy adapt --no-verify-jwt
 ```
 
-Full Node server (local / non-Pages hosts):
+Function source: [`supabase/functions/adapt`](supabase/functions/adapt). Details: [docs/AI.md](docs/AI.md).
 
-```bash
-npm run build && NODE_ENV=production npm start
-```
+### 2. GitHub Pages (static PWA)
+
+1. Repo secret `VITE_ADAPT_URL` = `https://<project-ref>.supabase.co/functions/v1/adapt`
+2. Enable **Settings → Pages → GitHub Actions**
+3. Push to `main` — workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)
 
 ## Scripts
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Express + Vite middleware (port 3000) |
-| `npm run build` | Client + bundled server |
-| `npm run build:pages` | Client-only (GitHub Pages) |
+| `npm run dev` | Express + Vite (local director at `/api/gemini/adapt`) |
+| `npm run build` | Client + bundled Node server |
+| `npm run build:pages` | Client-only (Pages) |
 | `npm start` | Production Node server |
-| `npm test` | Schema / gameplay tests |
+| `npm test` | Gameplay / schema tests |
 | `npm run lint` | Typecheck |
 
 ## Docs
 
 - [Gameplay](docs/GAMEPLAY.md)
 - [Product](docs/PRODUCT.md)
-- [AI adaptation](docs/AI.md)
+- [AI director](docs/AI.md)
 - [Nerdy hackathon](docs/NERDY_HACKATHON.md)
