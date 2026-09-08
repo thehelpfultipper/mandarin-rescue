@@ -3,6 +3,12 @@ import { DEFAULT_LEVELS, DEFAULT_PROGRESS } from '../src/lib/persistence';
 import { boardGeometryKey, instantiateLevel } from '../src/lib/boardVariants';
 import { GeneratedMazeLevel, getMazeProfile } from '../src/lib/mazeGenerator';
 import { orderedContactsAlongPath, pathTouchesPoint, pathTouchesPolyline } from '../src/lib/pathGeometry';
+import {
+  barrierIntersectsRect,
+  getScreenSpaceBarrierContact,
+  labelRect,
+  placeMazeLabels,
+} from '../src/lib/mazeInteractionGeometry';
 
 let passed = 0;
 let failed = 0;
@@ -158,7 +164,7 @@ function solveLevelBFS(
       const nx = ngx * cellSize + cellSize / 2;
       const ny = ngy * cellSize + cellSize / 2;
 
-      // Match GameCanvas pointer clamp (3–97) — edge-skimming paths are not drawable
+      // Keep the conservative solver clear of the outer wall envelope.
       if (nx < 3 || nx > 97 || ny < 3 || ny > 97) continue;
 
       let segmentValid = true;
@@ -646,6 +652,131 @@ runTest('Validate Non-Trivial Geometry Enforcement', () => {
   const isStillTrivial = isStraightLineValid(nonTrivialLevel as any);
   if (isStillTrivial) {
     throw new Error('Expected obstructed level to not be trivial');
+  }
+});
+
+runTest('Validate Mobile Wall Contact Forgiveness in Screen Space', () => {
+  const radius = 4;
+  const verticalWall = { x1: 50, y1: 10, x2: 50, y2: 90 };
+  const horizontalWall = { x1: 10, y1: 50, x2: 90, y2: 50 };
+
+  const nearVertical = getScreenSpaceBarrierContact(
+    { x: 51, y: 20 },
+    { x: 51, y: 40 },
+    verticalWall,
+    3,
+    4,
+    radius
+  );
+  const nearHorizontal = getScreenSpaceBarrierContact(
+    { x: 20, y: 50.75 },
+    { x: 40, y: 50.75 },
+    horizontalWall,
+    3,
+    4,
+    radius
+  );
+  if (!nearVertical || !nearHorizontal) {
+    throw new Error('Equal 3px wall approaches should contact in either orientation');
+  }
+
+  const outsideGrace = getScreenSpaceBarrierContact(
+    { x: 52, y: 20 },
+    { x: 52, y: 40 },
+    verticalWall,
+    3,
+    4,
+    radius
+  );
+  if (outsideGrace) throw new Error('A path beyond the 4px grace radius was blocked');
+
+  const crossing = getScreenSpaceBarrierContact(
+    { x: 48, y: 30 },
+    { x: 52, y: 30 },
+    verticalWall,
+    3,
+    4,
+    0
+  );
+  if (!crossing) throw new Error('A true wall-centerline crossing must always block');
+});
+
+runTest('Validate Maze Labels Prefer Wall-Clear Floor Space', () => {
+  const wall = { x1: 45, y1: 128, x2: 155, y2: 128 };
+  const nodeObstacle = { left: 70, right: 130, top: 55, bottom: 90 };
+  const [placement] = placeMazeLabels(
+    [{ id: 'fire', anchorX: 100, anchorY: 100, halfWidth: 30 }],
+    [wall],
+    200,
+    200,
+    { x: 12, y: 12 },
+    [nodeObstacle]
+  );
+  if (!placement) {
+    throw new Error('Label placement was not produced');
+  }
+  if (barrierIntersectsRect(wall, labelRect(placement), 5.5)) {
+    throw new Error('Chosen label still intersects the avoidable wall');
+  }
+  const rect = labelRect(placement);
+  const overlapsNode =
+    rect.left < nodeObstacle.right &&
+    rect.right > nodeObstacle.left &&
+    rect.top < nodeObstacle.bottom &&
+    rect.bottom > nodeObstacle.top;
+  if (overlapsNode) {
+    throw new Error('Chosen label overlaps avoidable node artwork');
+  }
+
+  const crowdedPlacements = placeMazeLabels(
+    [
+      { id: 'fire', anchorX: 80, anchorY: 100, halfWidth: 30 },
+      { id: 'meat', anchorX: 120, anchorY: 100, halfWidth: 30 },
+    ],
+    [],
+    220,
+    200,
+    { x: 12, y: 12 },
+    [
+      { left: 56, right: 104, top: 76, bottom: 124 },
+      { left: 96, right: 144, top: 76, bottom: 124 },
+    ]
+  );
+  if (crowdedPlacements.length !== 2) {
+    throw new Error('Crowded but placeable labels were unnecessarily omitted');
+  }
+  const firstRect = labelRect(crowdedPlacements[0]);
+  const secondRect = labelRect(crowdedPlacements[1]);
+  const labelsOverlap =
+    firstRect.left < secondRect.right &&
+    firstRect.right > secondRect.left &&
+    firstRect.top < secondRect.bottom &&
+    firstRect.bottom > secondRect.top;
+  if (labelsOverlap) {
+    throw new Error('Maze labels overlap one another');
+  }
+});
+
+runTest('Validate Sparse Segment Triggers Activate Before Their Barrier', () => {
+  const key = { id: 'key', x: 40, y: 50 };
+  const barrierPoint = { x: 50, y: 50 };
+  const contactsBeforeBarrier = orderedContactsAlongPath(
+    [{ x: 20, y: 50 }, barrierPoint],
+    [key],
+    6.5
+  );
+  if (!contactsBeforeBarrier.some(contact => contact.id === key.id)) {
+    throw new Error('A key reached before the barrier was not activated');
+  }
+
+  const keyBeyondBarrier = { id: 'late-key', x: 65, y: 50 };
+  const lateContacts = orderedContactsAlongPath(
+    [{ x: 20, y: 50 }, barrierPoint],
+    [keyBeyondBarrier],
+    6.5
+  );
+  if (lateContacts.length > 0) {
+    throw new Error('A key beyond the barrier activated too early');
   }
 });
 

@@ -6,9 +6,11 @@ import { getVocabularyStage } from '../lib/persistence';
 import { freshBoardSeed, instantiateLevel } from '../lib/boardVariants';
 import { patrolPositionAt } from '../lib/mazeKit';
 import { orderedContactsAlongPath, nearestPointOnPolyline, pathTouchesPoint, pathTouchesPolyline, pointToPathSegmentDistance } from '../lib/pathGeometry';
+import { getScreenSpaceBarrierContact, placeMazeLabels } from '../lib/mazeInteractionGeometry';
 
-/** Visual walls are ~7px thick; collision uses this radius in 0–100 board space. */
-const WALL_COLLISION_THICKNESS = 2.6;
+/** Fixed screen-space radii keep portrait corridors equally forgiving in both directions. */
+const WALL_CONTACT_RADIUS_PX = 4;
+const GATE_CONTACT_RADIUS_PX = 3;
 /** Beagle trot speed in board-units / sec (shared with patrol timing puzzle). */
 const BEAGLE_SPEED = 55;
 /** Keep maze/labels inset from the board frame so edge nodes never clip. */
@@ -207,61 +209,6 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
   );
 }
 
-// Line intersection helper
-function getLineIntersection(
-  p0_x: number, p0_y: number,
-  p1_x: number, p1_y: number,
-  p2_x: number, p2_y: number,
-  p3_x: number, p3_y: number
-): { x: number; y: number } | null {
-  const s1_x = p1_x - p0_x;
-  const s1_y = p1_y - p0_y;
-  const s2_x = p3_x - p2_x;
-  const s2_y = p3_y - p2_y;
-
-  const denom = -s2_x * s1_y + s1_x * s2_y;
-  if (Math.abs(denom) < 0.00001) return null; // Parallel or collinear
-
-  const s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / denom;
-  const t = (s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / denom;
-
-  if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
-    return {
-      x: p0_x + t * s1_x,
-      y: p0_y + t * s1_y
-    };
-  }
-  return null;
-}
-
-function pointToSegmentDistance(
-  px: number, py: number,
-  x1: number, y1: number,
-  x2: number, y2: number
-): number {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
-  let t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
-  t = Math.max(0, Math.min(1, t));
-  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
-}
-
-/** True if path segment crosses or comes within thickness of a barrier segment. */
-function pathHitsThickBarrier(
-  ax: number, ay: number, bx: number, by: number,
-  x1: number, y1: number, x2: number, y2: number,
-  thickness = WALL_COLLISION_THICKNESS
-): { x: number; y: number } | null {
-  const hit = getLineIntersection(ax, ay, bx, by, x1, y1, x2, y2);
-  if (hit) return hit;
-  if (pointToSegmentDistance(ax, ay, x1, y1, x2, y2) < thickness) return { x: ax, y: ay };
-  if (pointToSegmentDistance(bx, by, x1, y1, x2, y2) < thickness) return { x: bx, y: by };
-  if (pointToSegmentDistance(x1, y1, ax, ay, bx, by) < thickness) return { x: x1, y: y1 };
-  if (pointToSegmentDistance(x2, y2, ax, ay, bx, by) < thickness) return { x: x2, y: y2 };
-  return null;
-}
-
 export function GameCanvas({
   level: levelTemplate,
   onSuccess,
@@ -284,6 +231,8 @@ export function GameCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const boardSlotRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const activePointerIdRef = useRef<number | null>(null);
+  const wallContactIdRef = useRef<string | null>(null);
 
   // Layout — board fills the slot; SVG tracks its box
   const [dimensions, setDimensions] = useState({ width: 320, height: 400 });
@@ -395,6 +344,8 @@ export function GameCanvas({
     }
     simDistanceRef.current = 0;
     simLastTsRef.current = null;
+    activePointerIdRef.current = null;
+    wallContactIdRef.current = null;
     setDrawnPath([]);
     setIsDrawing(false);
     setIsSimulating(false);
@@ -567,12 +518,12 @@ export function GameCanvas({
     }
   };
 
-  // Map pointer event to 0-100 coordinate space (inverse of PLAY_INSET display mapping)
-  const getPointerCoords = (e: React.PointerEvent<SVGSVGElement>) => {
+  // Map a browser pointer sample to 0-100 board space.
+  const getPointerCoords = (clientX: number, clientY: number) => {
     if (!svgRef.current) return { x: 0, y: 0 };
     const rect = svgRef.current.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) / rect.width;
-    const ny = (e.clientY - rect.top) / rect.height;
+    const nx = (clientX - rect.left) / rect.width;
+    const ny = (clientY - rect.top) / rect.height;
     const span = 1 - 2 * PLAY_INSET;
     const px = ((nx - PLAY_INSET) / span) * 100;
     const py = ((ny - PLAY_INSET) / span) * 100;
@@ -582,15 +533,36 @@ export function GameCanvas({
     };
   };
 
-  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (isSimulating || status !== 'idle' || !actorNode) return;
-    e.preventDefault();
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+  const barrierContact = (
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    barrier: { x1: number; y1: number; x2: number; y2: number },
+    radiusPx = WALL_CONTACT_RADIUS_PX
+  ) => getScreenSpaceBarrierContact(
+    start,
+    end,
+    barrier,
+    ((1 - 2 * PLAY_INSET) * dimensions.width) / 100,
+    ((1 - 2 * PLAY_INSET) * dimensions.height) / 100,
+    radiusPx
+  );
 
-    const coords = getPointerCoords(e);
+  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (
+      isSimulating ||
+      status !== 'idle' ||
+      !actorNode ||
+      !e.isPrimary ||
+      activePointerIdRef.current != null
+    ) return;
+    e.preventDefault();
+
+    const coords = getPointerCoords(e.clientX, e.clientY);
     const distToActor = Math.hypot(coords.x - actorNode.x, coords.y - actorNode.y);
 
     if (distToActor <= 14) {
+      activePointerIdRef.current = e.pointerId;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
       setIsDrawing(true);
       setRhythmState('drawing');
       const startPt = { x: actorNode.x, y: actorNode.y };
@@ -600,6 +572,7 @@ export function GameCanvas({
       setFeedbackMsg('');
       setFeedbackKind(null);
       setWallShockwave(null);
+      wallContactIdRef.current = null;
       setHazardAlert(null);
       evaluateInteractionsAlongPath([startPt]);
       onDismissDrawCoach?.();
@@ -614,78 +587,96 @@ export function GameCanvas({
   };
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing || drawnPath.length === 0) return;
-    const coords = getPointerCoords(e);
-    const lastPoint = drawnPath[drawnPath.length - 1];
+    if (
+      !isDrawing ||
+      drawnPath.length === 0 ||
+      activePointerIdRef.current !== e.pointerId
+    ) return;
+    e.preventDefault();
 
-    // 1. TACTILE BACKTRACKING: If dragging back onto an earlier part of the path, smoothly unwind!
-    if (drawnPath.length > 4) {
-      for (let i = drawnPath.length - 3; i >= 0; i--) {
-        const prevPt = drawnPath[i];
-        const dist = Math.hypot(coords.x - prevPt.x, coords.y - prevPt.y);
-        if (dist < 4.5) {
-          // User is backtracking! Rewind the path to that node.
-          const unwoundPath = drawnPath.slice(0, i + 1);
-          setDrawnPath(unwoundPath);
-          setActiveDrawCoord(unwoundPath[unwoundPath.length - 1]);
-          evaluateInteractionsAlongPath(unwoundPath);
-          return;
+    const coalesced = e.nativeEvent.getCoalescedEvents?.() || [];
+    const samples = coalesced.length > 0 ? coalesced : [e.nativeEvent];
+    let workingPath = drawnPath;
+    let changed = false;
+
+    for (const sample of samples) {
+      const coords = getPointerCoords(sample.clientX, sample.clientY);
+      const lastPoint = workingPath[workingPath.length - 1];
+      if (!lastPoint) break;
+
+      // Dragging back over the existing stroke unwinds it instead of forcing a restart.
+      let unwound = false;
+      if (workingPath.length > 4) {
+        for (let i = workingPath.length - 3; i >= 0; i--) {
+          const prevPt = workingPath[i];
+          const dist = Math.hypot(coords.x - prevPt.x, coords.y - prevPt.y);
+          if (dist < 4.5) {
+            workingPath = workingPath.slice(0, i + 1);
+            changed = true;
+            unwound = true;
+            wallContactIdRef.current = null;
+            setWallShockwave(null);
+            break;
+          }
         }
       }
-    }
+      if (unwound) continue;
 
-    // 2. Minimum movement threshold to avoid noise
-    const distToLast = Math.hypot(coords.x - lastPoint.x, coords.y - lastPoint.y);
-    if (distToLast < 1.4) return;
+      // Minimum movement threshold avoids noisy duplicate samples.
+      const distToLast = Math.hypot(coords.x - lastPoint.x, coords.y - lastPoint.y);
+      if (distToLast < 1.4) continue;
 
-    // 3. Check Route Energy Limit
-    const currentLen = getRouteLength(drawnPath);
-    if (currentLen + distToLast > routeLimit) {
-      setFeedbackMsg('Ink ran out — shorten the route or backtrack before you commit.');
-      setFeedbackKind('drawing');
-      if (soundEnabled && 'vibrate' in navigator) {
-        navigator.vibrate([20, 20]);
-      }
-      return;
-    }
-
-    // Live barrier state from current path (no React lag after switches)
-    const live = computeInteractionsAlongPath(drawnPath);
-    const liveInactive = live.disabledWalls;
-    const liveKeys = live.keys;
-
-    // 4. REAL-TIME PHYSICAL WALL COLLISION DETECTION (thick barriers)
-    for (const wall of level.walls || []) {
-      if (liveInactive.includes(wall.id)) continue;
-      const intersect = pathHitsThickBarrier(lastPoint.x, lastPoint.y, coords.x, coords.y, wall.x1, wall.y1, wall.x2, wall.y2);
-      if (intersect) {
-        setWallShockwave({ x: intersect.x, y: intersect.y, wallId: wall.id });
-        setFeedbackMsg('Wall — keep the ink inside the open corridors.');
+      const currentLen = getRouteLength(workingPath);
+      if (currentLen + distToLast > routeLimit) {
+        setFeedbackMsg('Ink ran out — shorten the route or backtrack before you commit.');
         setFeedbackKind('drawing');
-        if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(15);
-        return;
+        if (soundEnabled && 'vibrate' in navigator) {
+          navigator.vibrate([20, 20]);
+        }
+        break;
       }
-    }
 
-    // 5. REAL-TIME LOCKED DOOR COLLISION DETECTION
-    for (const door of level.lockedDoors || []) {
-      const isDoorOpen = liveKeys.includes(door.keyNodeId);
-      if (isDoorOpen) continue;
-      const intersect = pathHitsThickBarrier(lastPoint.x, lastPoint.y, coords.x, coords.y, door.x1, door.y1, door.x2, door.y2);
-      if (intersect) {
+      // Live barrier state from the current working path avoids React lag after switches.
+      const live = computeInteractionsAlongPath(workingPath);
+      const liveInactive = live.disabledWalls;
+      const liveKeys = live.keys;
+
+      let blocked = false;
+      for (const wall of level.walls || []) {
+        if (liveInactive.includes(wall.id)) continue;
+        const intersect = barrierContact(lastPoint, coords, wall);
+        if (!intersect) continue;
+        const interactionsAtWall = computeInteractionsAlongPath([...workingPath, intersect]);
+        if (interactionsAtWall.disabledWalls.includes(wall.id)) continue;
+        blocked = true;
+        if (wallContactIdRef.current !== wall.id) {
+          wallContactIdRef.current = wall.id;
+          setWallShockwave({ x: intersect.x, y: intersect.y, wallId: wall.id });
+          if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(10);
+        }
+        break;
+      }
+      if (blocked) break;
+
+      for (const door of level.lockedDoors || []) {
+        if (liveKeys.includes(door.keyNodeId)) continue;
+        const intersect = barrierContact(lastPoint, coords, door);
+        if (!intersect) continue;
+        const interactionsAtDoor = computeInteractionsAlongPath([...workingPath, intersect]);
+        if (interactionsAtDoor.keys.includes(door.keyNodeId)) continue;
         const keyNode = level.nodes.find(n => n.id === door.keyNodeId);
         setWallShockwave({ x: intersect.x, y: intersect.y, wallId: door.id });
         setFeedbackMsg(`Locked — grab ${keyNode?.chineseChar || '钥'} first, then this gate opens.`);
         setFeedbackKind('language');
         if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(15);
-        return;
+        blocked = true;
+        break;
       }
-    }
+      if (blocked) break;
 
-    // 6. REAL-TIME ONE-WAY GATE DIRECTION CHECK
-    for (const gate of level.oneWayGates || []) {
-      const intersect = pathHitsThickBarrier(lastPoint.x, lastPoint.y, coords.x, coords.y, gate.x1, gate.y1, gate.x2, gate.y2, 1.5);
-      if (intersect) {
+      for (const gate of level.oneWayGates || []) {
+        const intersect = barrierContact(lastPoint, coords, gate, GATE_CONTACT_RADIUS_PX);
+        if (!intersect) continue;
         const dx = coords.x - lastPoint.x;
         const dy = coords.y - lastPoint.y;
         let illegal = false;
@@ -699,32 +690,40 @@ export function GameCanvas({
           setFeedbackMsg(`One-way — only ${gate.allowDirection} works here. Re-read the clue.`);
           setFeedbackKind('language');
           if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(15);
-          return;
+          blocked = true;
+          break;
         }
       }
+      if (blocked) break;
+
+      const hazards = level.nodes.filter(
+        n => n.type === 'hazard' || level.forbiddenNodeIds.includes(n.id)
+      );
+      const nearbyHazard = hazards.find(
+        h => pointToPathSegmentDistance(h, lastPoint, coords) < 6.8
+      );
+      setHazardAlert(nearbyHazard?.chineseChar || null);
+
+      workingPath = [...workingPath, coords];
+      changed = true;
+      wallContactIdRef.current = null;
+      setWallShockwave(null);
     }
 
-    // 7. HAZARD PROXIMITY ALERT
-    const hazards = level.nodes.filter(n => n.type === 'hazard' || level.forbiddenNodeIds.includes(n.id));
-    for (const h of hazards) {
-      const distToHazard = pointToPathSegmentDistance(h, lastPoint, coords);
-      if (distToHazard < 6.8) {
-        setHazardAlert(h.chineseChar);
-      } else if (hazardAlert === h.chineseChar) {
-        setHazardAlert(null);
-      }
+    if (changed) {
+      setDrawnPath(workingPath);
+      setActiveDrawCoord(workingPath[workingPath.length - 1]);
+      evaluateInteractionsAlongPath(workingPath);
     }
-
-    // Path segment is valid! Append point and refresh live puzzle state
-    const newPath = [...drawnPath, coords];
-    setDrawnPath(newPath);
-    setActiveDrawCoord(coords);
-    setWallShockwave(null);
-    evaluateInteractionsAlongPath(newPath);
   };
 
-  const handlePointerUp = () => {
-    if (!isDrawing) return;
+  const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isDrawing || activePointerIdRef.current !== e.pointerId) return;
+    activePointerIdRef.current = null;
+    wallContactIdRef.current = null;
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    }
     setIsDrawing(false);
     setActiveDrawCoord(null);
 
@@ -784,6 +783,19 @@ export function GameCanvas({
     setTimeout(() => {
       startPathSimulation();
     }, 450);
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (activePointerIdRef.current !== e.pointerId) return;
+    activePointerIdRef.current = null;
+    wallContactIdRef.current = null;
+    setIsDrawing(false);
+    setDrawnPath([]);
+    setActiveDrawCoord(null);
+    setWallShockwave(null);
+    setHazardAlert(null);
+    setRhythmState('quiet');
+    evaluateInteractionsAlongPath([]);
   };
 
   // Start Beagle animated trot along drawn path (polyline arc-length — never chord-cuts walls)
@@ -1014,16 +1026,58 @@ export function GameCanvas({
   const toPxY = (pct: number) => (PLAY_INSET + (pct / 100) * (1 - 2 * PLAY_INSET)) * dimensions.height;
   const toCssPct = (pct: number) => PLAY_INSET * 100 + pct * (1 - 2 * PLAY_INSET);
 
-  /** Keep label pills inside the inset playfield. */
-  const clampBoardX = (x: number, halfW: number) => {
-    const minX = PLAY_INSET * dimensions.width + halfW + 2;
-    const maxX = (1 - PLAY_INSET) * dimensions.width - halfW - 2;
-    return Math.min(maxX, Math.max(minX, x));
-  };
-  const labelBelowY = (cy: number, prefer = 30) => {
-    const maxY = (1 - PLAY_INSET) * dimensions.height - 10;
-    return cy + prefer > maxY ? cy - 36 : cy + prefer;
-  };
+  const nodeSubtitles = level.nodes.flatMap(node => {
+    const scaffoldItem = level.vocabularyScaffold?.find(s => s.char === node.chineseChar);
+    let label = node.label;
+    if (scaffoldItem) {
+      const dynamicStage = getVocabularyStage(node.chineseChar, progress);
+      if (dynamicStage === 'new') {
+        label = `${scaffoldItem.pinyin} | ${scaffoldItem.english}`;
+      } else if (dynamicStage === 'familiar') {
+        label = scaffoldItem.pinyin;
+      } else {
+        return [];
+      }
+    }
+    const shortLabel =
+      label.length > 18 ? label.replace(/\s*\/\s*.+$/, '').trim() : label;
+    return [{
+      id: node.id,
+      label: shortLabel,
+      anchorX: toPxX(node.x),
+      anchorY: toPxY(node.y),
+      halfWidth: Math.min(48, Math.max(28, shortLabel.length * 3.2)),
+    }];
+  });
+  const labelBarriers = [
+    ...(level.walls || []),
+    ...(level.lockedDoors || []),
+    ...(level.oneWayGates || []),
+  ].map(barrier => ({
+    x1: toPxX(barrier.x1),
+    y1: toPxY(barrier.y1),
+    x2: toPxX(barrier.x2),
+    y2: toPxY(barrier.y2),
+  }));
+  const nodeAvoidRects = level.nodes.map(node => {
+    const x = toPxX(node.x);
+    const y = toPxY(node.y);
+    return {
+      left: x - 24,
+      right: x + 24,
+      top: y - 24,
+      bottom: y + 24,
+    };
+  });
+  const labelPlacements = placeMazeLabels(
+    nodeSubtitles,
+    labelBarriers,
+    dimensions.width,
+    dimensions.height,
+    { x: PLAY_INSET * dimensions.width, y: PLAY_INSET * dimensions.height },
+    nodeAvoidRects
+  );
+  const subtitleById = new Map(nodeSubtitles.map(item => [item.id, item.label]));
 
   return (
     <div
@@ -1207,6 +1261,8 @@ export function GameCanvas({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onLostPointerCapture={handlePointerCancel}
         >
           <defs>
             {/* Ink Ribbon Gradient */}
@@ -1234,6 +1290,33 @@ export function GameCanvas({
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
           </defs>
+
+          {/* Floor-level vocabulary labels: walls paint above these so topology stays visible. */}
+          {labelPlacements.map(label => (
+            <g
+              key={`label_${label.id}`}
+              transform={`translate(${label.x}, ${label.y})`}
+              className="pointer-events-none select-none"
+            >
+              <rect
+                x={-label.halfWidth}
+                y="-7"
+                width={label.halfWidth * 2}
+                height="14"
+                rx="4"
+                fill="rgba(30, 27, 24, 0.78)"
+                stroke="rgba(120, 113, 108, 0.72)"
+                strokeWidth="0.8"
+              />
+              <text
+                textAnchor="middle"
+                y="3"
+                className="fill-stone-100 text-[9px] font-semibold tracking-wide"
+              >
+                {subtitleById.get(label.id)}
+              </text>
+            </g>
+          ))}
 
           {/* 1. SWITCH CONDUIT LINES: Connect switch node to the target wall it deactivates */}
           {level.switches?.map(sw => {
@@ -1524,6 +1607,17 @@ export function GameCanvas({
               <text x="7" y="-7" className="text-[12px] select-none pointer-events-none">🏮</text>
             </g>
           )}
+          {activeDrawCoord && hazardAlert && (
+            <g
+              transform={`translate(${toPxX(activeDrawCoord.x)}, ${toPxY(activeDrawCoord.y)})`}
+              className="pointer-events-none select-none"
+            >
+              <circle r="22" fill="none" stroke="#FB7185" strokeWidth="1.5" strokeDasharray="3,3" />
+              <text y="-23" textAnchor="middle" className="fill-rose-200 text-[10px] font-black">
+                {hazardAlert}
+              </text>
+            </g>
+          )}
 
           {/* 7. WALL IMPACT SHOCKWAVE ALERT */}
           {wallShockwave && (
@@ -1542,22 +1636,6 @@ export function GameCanvas({
 
             const cx = toPxX(node.x);
             const cy = toPxY(node.y);
-
-            // Scaffold label calculation
-            const scaffoldItem = level.vocabularyScaffold?.find(s => s.char === node.chineseChar);
-            let subLabel = node.label;
-            let showLabel = true;
-            const dynamicStage = getVocabularyStage(node.chineseChar, progress);
-
-            if (scaffoldItem) {
-              if (dynamicStage === 'new') {
-                subLabel = `${scaffoldItem.pinyin} | ${scaffoldItem.english}`;
-              } else if (dynamicStage === 'familiar') {
-                subLabel = scaffoldItem.pinyin;
-              } else {
-                showLabel = false;
-              }
-            }
 
             // Custom Node Vector Art
             let nodeArtwork: React.ReactNode = null;
@@ -1754,37 +1832,6 @@ export function GameCanvas({
                   </g>
                 )}
 
-                {/* Subtitle label pill — clamped so edge nodes never clip out of the board */}
-                {showLabel && (() => {
-                  const shortLabel =
-                    subLabel.length > 18
-                      ? subLabel.replace(/\s*\/\s*.+$/, '').trim()
-                      : subLabel;
-                  const halfW = Math.min(48, Math.max(28, shortLabel.length * 3.2));
-                  const lx = clampBoardX(cx, halfW);
-                  const ly = labelBelowY(cy, 30);
-                  return (
-                    <g transform={`translate(${lx}, ${ly})`}>
-                      <rect
-                        x={-halfW}
-                        y="-7"
-                        width={halfW * 2}
-                        height="14"
-                        rx="4"
-                        fill="#1E1B18"
-                        stroke="#51483F"
-                        strokeWidth="0.8"
-                      />
-                      <text
-                        textAnchor="middle"
-                        y="3"
-                        className="fill-stone-100 text-[9px] font-semibold tracking-wide select-none"
-                      >
-                        {shortLabel}
-                      </text>
-                    </g>
-                  );
-                })()}
               </g>
             );
           })}
