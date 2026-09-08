@@ -166,7 +166,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
             return (
               <span
                 key={index}
-                className={`${density === 'roomy' ? 'text-3xl' : 'text-2xl'} text-stone-500 font-serif px-0.5 leading-none select-none`}
+                className={`${density === 'roomy' ? 'text-3xl' : 'text-2xl'} text-stone-400 font-serif px-0.5 leading-none select-none`}
                 aria-hidden
               >
                 {char}
@@ -209,7 +209,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
       </div>
 
       {showCoachHint && (
-        <p className="text-[10px] text-stone-500 text-center leading-snug px-2 pt-0.5 pb-0.5">
+        <p className="text-[10px] text-stone-400 text-center leading-snug px-2 pt-0.5 pb-0.5">
           Tap a character for meaning
         </p>
       )}
@@ -1130,7 +1130,7 @@ export function GameCanvas({
               </p>
             )}
             {showTranslation && (
-              <p className="text-xs text-stone-500 font-medium leading-relaxed">
+              <p className="text-xs text-stone-400 font-medium leading-relaxed">
                 {level.englishTranslation}
               </p>
             )}
@@ -1292,7 +1292,7 @@ export function GameCanvas({
                   stroke={isSwActive ? '#10B981' : '#8B5CF6'}
                   strokeWidth="1.5"
                   strokeDasharray="4,4"
-                  opacity={isSwActive ? 0.6 : 0.25}
+                  opacity={isSwActive ? 0.75 : 0.45}
                 />
               </g>
             );
@@ -1313,7 +1313,7 @@ export function GameCanvas({
                 <line 
                   x1={gx1} y1={gy1}
                   x2={gx2} y2={gy2}
-                  stroke="#92400E"
+                  stroke="#D97706"
                   strokeWidth="4"
                   strokeDasharray="5,4"
                   strokeLinecap="round"
@@ -1324,7 +1324,7 @@ export function GameCanvas({
                   cy={midY} 
                   r="10" 
                   fill="#29180E"
-                  stroke="#B45309"
+                  stroke="#F59E0B"
                   strokeWidth="1.5"
                 />
                 <text 
@@ -1393,7 +1393,7 @@ export function GameCanvas({
                 <line 
                   x1={wx1} y1={wy1}
                   x2={wx2} y2={wy2}
-                  stroke={isShocked ? '#B91C1C' : '#38312B'}
+                  stroke={isShocked ? '#EF4444' : '#51483F'}
                   strokeWidth="7"
                   strokeLinecap="round"
                   className="transition-colors duration-150"
@@ -1403,7 +1403,7 @@ export function GameCanvas({
                 <line 
                   x1={wx1} y1={wy1}
                   x2={wx2} y2={wy2}
-                  stroke={isShocked ? '#EF4444' : '#655749'}
+                  stroke={isShocked ? '#F87171' : '#9A856F'}
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeDasharray="6,3"
@@ -1412,11 +1412,11 @@ export function GameCanvas({
                 {/* 5. Terminal Stone Pillar Buttresses at Wall Ends */}
                 <g>
                   {/* Start Pillar */}
-                  <circle cx={wx1} cy={wy1} r="6" fill="#241E1A" stroke="#4A3F36" strokeWidth="1.5" />
-                  <circle cx={wx1} cy={wy1} r="2" fill="#854D0E" />
+                  <circle cx={wx1} cy={wy1} r="6" fill="#241E1A" stroke="#6B5F55" strokeWidth="1.5" />
+                  <circle cx={wx1} cy={wy1} r="2" fill="#D97706" />
                   {/* End Pillar */}
-                  <circle cx={wx2} cy={wy2} r="6" fill="#241E1A" stroke="#4A3F36" strokeWidth="1.5" />
-                  <circle cx={wx2} cy={wy2} r="2" fill="#854D0E" />
+                  <circle cx={wx2} cy={wy2} r="6" fill="#241E1A" stroke="#6B5F55" strokeWidth="1.5" />
+                  <circle cx={wx2} cy={wy2} r="2" fill="#D97706" />
                 </g>
               </g>
             );
@@ -1458,7 +1458,7 @@ export function GameCanvas({
                 <line 
                   x1={dx1} y1={dy1}
                   x2={dx2} y2={dy2}
-                  stroke={isShocked ? '#B91C1C' : '#451A03'}
+                  stroke={isShocked ? '#EF4444' : '#78350F'}
                   strokeWidth="8"
                   strokeLinecap="round"
                 />
@@ -1466,7 +1466,7 @@ export function GameCanvas({
                 <line 
                   x1={dx1} y1={dy1}
                   x2={dx2} y2={dy2}
-                  stroke="#78350F"
+                  stroke="#B45309"
                   strokeWidth="4"
                   strokeDasharray="4,6"
                   strokeLinecap="round"
@@ -1493,7 +1493,7 @@ export function GameCanvas({
                   stroke="#9F1239"
                   strokeWidth="1.5"
                   strokeDasharray="3,4"
-                  opacity="0.35"
+                  opacity="0.55"
                 />
                 <circle
                   cx={toPxX(pos.x)}
@@ -1816,7 +1816,7 @@ export function GameCanvas({
                       <text
                         textAnchor="middle"
                         y="3"
-                        className="fill-stone-400 text-[8px] font-semibold tracking-wide select-none"
+                        className="fill-stone-300 text-[8px] font-semibold tracking-wide select-none"
                       >
                         {shortLabel}
                       </text>
@@ -2005,7 +2005,7 @@ export function GameCanvas({
                         ? 'Path blocked'
                         : 'Corridor guidance'}
                 </p>
-                <p className="text-stone-400 font-normal leading-snug text-[11px] mt-0.5">{feedbackMsg}</p>
+                <p className="text-stone-300 font-normal leading-snug text-[11px] mt-0.5">{feedbackMsg}</p>
               </div>
             </div>
           </motion.div>
@@ -2026,9 +2026,9 @@ export function GameCanvas({
             type="button"
             onClick={status === 'success' ? onNextLevel : handleRetry}
             className={`flex-1 rounded-xl py-2 text-xs font-bold shadow-sm transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 min-h-[44px] ${
-              status === 'success' 
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
-                : 'bg-amber-600 hover:bg-amber-500 text-white'
+              status === 'success'
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-emerald-950'
+                : 'bg-amber-500 hover:bg-amber-400 text-[#141211]'
             }`}
             id="retry-button"
           >

@@ -119,7 +119,7 @@ export const PWAInstallButton: React.FC = () => {
                 </li>
               </ol>
 
-              <p className="mt-4 text-[11px] text-stone-500 leading-snug">
+              <p className="mt-4 text-[11px] text-stone-400 leading-snug">
                 Use Safari (not an in-app browser). On Android Chrome, use Install app when prompted.
               </p>
 
