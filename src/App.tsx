@@ -623,7 +623,7 @@ export default function App() {
         >
           <Compass className="w-10 h-10 text-amber-400" />
           <p className="font-display font-bold text-xl text-[#FAF9F6]">Rotate to portrait</p>
-          <p className="text-sm text-stone-400 leading-relaxed max-w-xs">
+          <p className="text-sm text-stone-300 leading-relaxed max-w-xs">
             Mandarin Rescue is built for portrait play — rotate your phone to continue drawing the rescue path.
           </p>
         </div>
@@ -648,7 +648,7 @@ export default function App() {
                   <h2 className="font-display font-black text-2xl text-[#FAF9F6] mt-0.5 tracking-tight">
                     Mandarin Rescue
                   </h2>
-                  <p className="text-xs text-stone-400 mt-1.5 leading-relaxed max-w-xs">
+                  <p className="text-xs text-stone-300 mt-1.5 leading-relaxed max-w-xs">
                     Read the clue. Draw the path. Get the beagle home.
                   </p>
                 </div>
@@ -657,7 +657,7 @@ export default function App() {
                     <PawPrint className="w-3.5 h-3.5" />
                     <span className="text-lg font-black tabular-nums">{rescuesCompleted}</span>
                   </div>
-                  <p className="text-[9px] text-stone-400 font-semibold uppercase tracking-wide mt-0.5">
+                  <p className="text-[10px] text-stone-300 font-semibold uppercase tracking-wide mt-0.5">
                     Rescues done
                   </p>
                 </div>
@@ -689,7 +689,7 @@ export default function App() {
                   <span>Practice another rescue</span>
                   <ChevronRight className="w-4 h-4 text-stone-400" />
                 </span>
-                <span className="text-[10px] font-medium text-stone-400 normal-case tracking-normal">
+                <span className="text-[11px] font-medium text-stone-300 normal-case tracking-normal">
                   Next mission follows how you play — offline rooms if the network’s out
                 </span>
               </button>
@@ -698,7 +698,7 @@ export default function App() {
             {/* Room list */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold tracking-wider text-stone-400 uppercase">Courtyard rooms</h2>
+                <h2 className="text-xs font-bold tracking-wider text-stone-300 uppercase">Courtyard rooms</h2>
                 <span className="text-xs font-semibold text-amber-300 bg-amber-950/20 border border-amber-900/20 px-2 py-1 rounded-full">
                   {progress.completedLevelIds.filter((id) => DEFAULT_LEVELS.some((l) => l.id === id)).length} / {DEFAULT_LEVELS.length}
                 </span>
@@ -727,7 +727,7 @@ export default function App() {
                           <h4 className="font-bold text-stone-200 text-sm">{lvl.title}</h4>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-lg font-bold text-stone-100 font-serif">{lvl.mandarinClue}</span>
-                            <span className="text-xs text-stone-400">({lvl.pinyinClue})</span>
+                            <span className="text-xs text-stone-300">({lvl.pinyinClue})</span>
                           </div>
                         </div>
                       </div>
@@ -752,7 +752,7 @@ export default function App() {
                   Kennel log
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="text-[10px] text-stone-400 font-semibold">
+                  <span className="text-[10px] text-stone-300 font-semibold">
                     {dueReviewChars.length} due · {Object.keys(progress.adaptiveModel?.hanziToMeaning || {}).length} words
                   </span>
                   <ChevronDown className={`w-4 h-4 text-stone-500 transition ${kennelOpen ? 'rotate-180' : ''}`} />
@@ -770,17 +770,17 @@ export default function App() {
                     <div className="px-4 pb-4 flex flex-col gap-3 border-t border-stone-850/50 pt-3">
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                          <div className="text-stone-400 font-bold uppercase tracking-wide text-[9px]">Words strong</div>
+                          <div className="text-stone-300 font-bold uppercase tracking-wide text-[10px]">Words strong</div>
                           <div className="text-base font-black text-stone-200 mt-1">
                             {Object.values(progress.adaptiveModel?.hanziToMeaning || {}).filter((h: { success: number }) => h.success >= 3).length}
                           </div>
                         </div>
                         <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                          <div className="text-stone-400 font-bold uppercase tracking-wide text-[9px]">Review due</div>
+                          <div className="text-stone-300 font-bold uppercase tracking-wide text-[10px]">Review due</div>
                           <div className="text-base font-black text-stone-200 mt-1">{dueReviewChars.length}</div>
                         </div>
                         <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                          <div className="text-stone-400 font-bold uppercase tracking-wide text-[9px]">Directions</div>
+                          <div className="text-stone-300 font-bold uppercase tracking-wide text-[10px]">Directions</div>
                           <div className="text-base font-black text-stone-200 mt-1">
                             {(() => {
                               const s = progress.adaptiveModel?.spatialComprehension || { success: 0, failure: 0 };
@@ -791,7 +791,7 @@ export default function App() {
                           </div>
                         </div>
                         <div className="border border-stone-850 rounded-xl p-3 bg-[#141211]/50">
-                          <div className="text-stone-400 font-bold uppercase tracking-wide text-[9px]">Order (先/再)</div>
+                          <div className="text-stone-300 font-bold uppercase tracking-wide text-[10px]">Order (先/再)</div>
                           <div className="text-base font-black text-stone-200 mt-1">
                             {(() => {
                               const o = progress.adaptiveModel?.orderedComprehension || { success: 0, failure: 0 };
@@ -824,7 +824,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="font-bold text-stone-100 text-sm">Install for phone play</h3>
-                  <p className="text-[11px] text-stone-400 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] text-stone-300 mt-0.5 leading-relaxed">
                     Home-screen app on iOS or Android — same rescues, fuller screen.
                   </p>
                 </div>
@@ -876,14 +876,14 @@ export default function App() {
         {/* VIEW 3: SETTINGS PANEL */}
         {currentView === 'settings' && (
           <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-3 duration-200" id="view-settings">
-            <h2 className="text-xs font-bold tracking-wider text-stone-400 uppercase">Preferences & Options</h2>
+            <h2 className="text-xs font-bold tracking-wider text-stone-300 uppercase">Preferences & Options</h2>
             
             <div className="bg-[#1C1A17] border border-stone-850/60 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
               
               <div className="flex items-center justify-between pb-3 border-b border-stone-850/40">
                 <div>
                   <h4 className="font-bold text-stone-200 text-sm">Sound</h4>
-                  <p className="text-[11px] text-stone-400">Optional — use Listen on a mission, or toggle here</p>
+                  <p className="text-[11px] text-stone-300">Optional — use Listen on a mission, or toggle here</p>
                 </div>
                 <button
                   type="button"
@@ -898,7 +898,7 @@ export default function App() {
               <div className="flex items-center justify-between pb-3 border-b border-stone-850/40">
                 <div>
                   <h4 className="font-bold text-stone-200 text-sm">Pinyin Pronunciation</h4>
-                  <p className="text-[11px] text-stone-400">Display Romanized help (māo chī yú)</p>
+                  <p className="text-[11px] text-stone-300">Display Romanized help (māo chī yú)</p>
                 </div>
                 <button
                   type="button"
@@ -913,7 +913,7 @@ export default function App() {
               <div className="flex items-center justify-between pb-3">
                 <div>
                   <h4 className="font-bold text-stone-200 text-sm">English Translations</h4>
-                  <p className="text-[11px] text-stone-400">Display auxiliary english clues</p>
+                  <p className="text-[11px] text-stone-300">Display auxiliary english clues</p>
                 </div>
                 <button
                   type="button"
@@ -929,10 +929,10 @@ export default function App() {
 
             <div className="bg-[#1C1A17] border border-stone-850/60 rounded-2xl p-5 shadow-sm flex flex-col gap-3">
               <h4 className="font-bold text-stone-200 text-sm">Vocabulary Progress Logs</h4>
-              <p className="text-xs text-stone-400 leading-relaxed">Words learned programmatically through route drawings are logged here.</p>
+              <p className="text-xs text-stone-300 leading-relaxed">Words learned programmatically through route drawings are logged here.</p>
               
               {Object.keys(progress.vocabularyAttempts).length === 0 ? (
-                <p className="text-xs text-stone-400 italic text-center py-4">No vocabulary records yet. Complete a level to log achievements.</p>
+                <p className="text-xs text-stone-300 italic text-center py-4">No vocabulary records yet. Complete a level to log achievements.</p>
               ) : (
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {Object.entries(progress.vocabularyAttempts).map(([word, stat]: [string, any]) => (

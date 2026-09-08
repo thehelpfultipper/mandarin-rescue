@@ -113,8 +113,6 @@ const MISSION_NOUNS = new Set([
 
 function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveClueProps) {
   const [activeCharIndex, setActiveCharIndex] = useState<number | null>(null);
-  const [popoverPos, setPopoverPos] = useState<{ left: number; top: number; placeBelow: boolean } | null>(null);
-  const charBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const chars = Array.from(clue);
   // Always show the full phrase: roomy on short clues, denser wrap on long ones
   const density = chars.length <= 7 ? 'roomy' : 'compact';
@@ -122,32 +120,6 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
     density === 'roomy'
       ? 'text-4xl min-h-[48px] min-w-[44px] px-1'
       : 'text-3xl min-h-[44px] min-w-[40px] px-0.5';
-
-  // Anchor meaning popover in viewport coords so chrome parents cannot clip it
-  useEffect(() => {
-    if (activeCharIndex === null) {
-      setPopoverPos(null);
-      return;
-    }
-    const btn = charBtnRefs.current[activeCharIndex];
-    if (!btn) return;
-    const place = () => {
-      const r = btn.getBoundingClientRect();
-      const placeBelow = r.top < 96;
-      setPopoverPos({
-        left: Math.min(window.innerWidth - 72, Math.max(72, r.left + r.width / 2)),
-        top: placeBelow ? r.bottom + 8 : r.top - 8,
-        placeBelow,
-      });
-    };
-    place();
-    window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-    return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
-    };
-  }, [activeCharIndex, clue]);
 
   const activeHelper =
     activeCharIndex !== null
@@ -166,7 +138,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
             return (
               <span
                 key={index}
-                className={`${density === 'roomy' ? 'text-3xl' : 'text-2xl'} text-stone-400 font-serif px-0.5 leading-none select-none`}
+                className={`${density === 'roomy' ? 'text-3xl' : 'text-2xl'} text-stone-300 font-serif px-0.5 leading-none select-none`}
                 aria-hidden
               >
                 {char}
@@ -184,7 +156,6 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
             <button
               key={index}
               type="button"
-              ref={el => { charBtnRefs.current[index] = el; }}
               onClick={() => {
                 if (!hasHelp) return;
                 setActiveCharIndex(activeCharIndex === index ? null : index);
@@ -197,9 +168,9 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
                   ? `cursor-pointer active:scale-95 ${
                       isMission
                         ? 'text-amber-100 font-black hover:bg-amber-400/10'
-                        : 'text-stone-200/90 font-bold hover:bg-stone-800/50'
+                        : 'text-stone-100 font-bold hover:bg-stone-800/50'
                     }`
-                  : 'text-stone-400 font-semibold cursor-default'
+                  : 'text-stone-300 font-semibold cursor-default'
               } ${isActive ? 'bg-amber-400/15 text-amber-50 ring-1 ring-amber-400/40' : ''}`}
             >
               {char}
@@ -209,38 +180,29 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
       </div>
 
       {showCoachHint && (
-        <p className="text-[10px] text-stone-400 text-center leading-snug px-2 pt-0.5 pb-0.5">
+        <p className="text-[11px] text-stone-300 text-center leading-snug px-2 pt-0.5 pb-0.5">
           Tap a character for meaning
         </p>
       )}
 
-      {/* Fixed-layer popover — escapes overflow clipping from mission chrome */}
-      {activeCharIndex !== null && activeHelper && popoverPos && (
-        <>
-          <div
-            className="fixed inset-0 z-[60] bg-transparent cursor-pointer"
-            onClick={() => setActiveCharIndex(null)}
-            aria-hidden
-          />
-          <div
-            role="dialog"
+      {/* In-flow meaning card cannot clip into a phone notch or cover the clue. */}
+      <AnimatePresence>
+        {activeCharIndex !== null && activeHelper && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
             aria-label={`${chars[activeCharIndex]} meaning`}
-            className={`fixed z-[70] -translate-x-1/2 bg-[#1C1A17] text-[#FAF9F6] border border-amber-900/40 rounded-xl p-3 shadow-2xl flex flex-col items-center gap-0.5 min-w-[130px] max-w-[min(90vw,16rem)] text-center pointer-events-none ${
-              popoverPos.placeBelow ? '' : '-translate-y-full'
-            }`}
-            style={{ left: popoverPos.left, top: popoverPos.top }}
+            aria-live="polite"
+            className="mx-auto mt-1 min-h-[44px] max-w-[calc(100vw-1rem)] rounded-xl border border-amber-700/60 bg-[#1C1A17] px-3 py-1.5 shadow-lg flex items-center justify-center gap-2 text-center"
           >
-            <span className="text-sm font-black text-amber-400 tracking-wide">{activeHelper.pinyin}</span>
-            <span className="text-xs text-[#F4F1EA]/90 leading-tight">{activeHelper.english}</span>
-            {activeHelper.emoji && <span className="text-lg mt-0.5">{activeHelper.emoji}</span>}
-            {popoverPos.placeBelow ? (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-8 border-transparent border-b-[#1C1A17]" />
-            ) : (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-[#1C1A17]" />
-            )}
-          </div>
-        </>
-      )}
+            <span className="text-sm font-black text-amber-300 tracking-wide">{activeHelper.pinyin}</span>
+            <span className="h-4 w-px bg-stone-700" aria-hidden />
+            <span className="text-xs font-medium text-[#FAF9F6] leading-tight">{activeHelper.english}</span>
+            {activeHelper.emoji && <span className="text-lg" aria-hidden>{activeHelper.emoji}</span>}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1081,7 +1043,7 @@ export function GameCanvas({
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <span className="bg-stone-800/80 px-2.5 py-1 rounded-full text-stone-400 font-mono text-[10px] shrink-0">
+          <span className="bg-stone-800 px-2.5 py-1 rounded-full text-stone-300 font-mono text-[10px] shrink-0">
             Room {level.id.replace('lvl_', '').replace(/^0+/, '') || level.id}
           </span>
 
@@ -1125,12 +1087,12 @@ export function GameCanvas({
         {(showPinyin || showTranslation) && (
           <div className="w-full min-w-0 px-3 text-center space-y-1">
             {showPinyin && (
-              <p className="text-sm text-stone-400 font-serif italic tracking-wide leading-relaxed">
+              <p className="text-sm text-stone-200 font-serif tracking-wide leading-relaxed">
                 {level.pinyinClue}
               </p>
             )}
             {showTranslation && (
-              <p className="text-xs text-stone-400 font-medium leading-relaxed">
+              <p className="text-xs text-stone-300 font-medium leading-relaxed">
                 {level.englishTranslation}
               </p>
             )}
@@ -1163,7 +1125,7 @@ export function GameCanvas({
                 style={{ width: `${Math.min(100, (routeLength / routeLimit) * 100)}%` }}
               />
             </div>
-            <span className={`font-mono shrink-0 font-bold ${isLengthMaxed ? 'text-rose-400' : 'text-stone-400'}`}>
+            <span className={`font-mono shrink-0 font-bold ${isLengthMaxed ? 'text-rose-300' : 'text-stone-300'}`}>
               {routeLength}/{routeLimit}
             </span>
           </div>
@@ -1186,12 +1148,12 @@ export function GameCanvas({
                     Hint
                   </span>
                   {revisitChars.length > 0 && (
-                    <p className="text-amber-300/90 mb-1.5 leading-snug font-semibold">
+                    <p className="text-amber-200 mb-1.5 leading-snug font-semibold">
                       This rescue revisits {revisitChars.join(' · ')}
                     </p>
                   )}
                   {framingLine && (
-                    <p className="text-amber-200/85 mb-1 leading-snug">{framingLine}</p>
+                    <p className="text-amber-100 mb-1 leading-snug">{framingLine}</p>
                   )}
                   <p className="text-stone-300">{level.hint}</p>
                 </div>
@@ -1289,10 +1251,10 @@ export function GameCanvas({
                 <line 
                   x1={swX} y1={swY}
                   x2={wallMidX} y2={wallMidY}
-                  stroke={isSwActive ? '#10B981' : '#8B5CF6'}
+                  stroke={isSwActive ? '#34D399' : '#A78BFA'}
                   strokeWidth="1.5"
                   strokeDasharray="4,4"
-                  opacity={isSwActive ? 0.75 : 0.45}
+                  opacity={isSwActive ? 0.85 : 0.7}
                 />
               </g>
             );
@@ -1393,7 +1355,7 @@ export function GameCanvas({
                 <line 
                   x1={wx1} y1={wy1}
                   x2={wx2} y2={wy2}
-                  stroke={isShocked ? '#EF4444' : '#51483F'}
+                  stroke={isShocked ? '#EF4444' : '#655A50'}
                   strokeWidth="7"
                   strokeLinecap="round"
                   className="transition-colors duration-150"
@@ -1403,7 +1365,7 @@ export function GameCanvas({
                 <line 
                   x1={wx1} y1={wy1}
                   x2={wx2} y2={wy2}
-                  stroke={isShocked ? '#F87171' : '#9A856F'}
+                  stroke={isShocked ? '#F87171' : '#B9A38B'}
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeDasharray="6,3"
@@ -1493,7 +1455,7 @@ export function GameCanvas({
                   stroke="#9F1239"
                   strokeWidth="1.5"
                   strokeDasharray="3,4"
-                  opacity="0.55"
+                  opacity="0.75"
                 />
                 <circle
                   cx={toPxX(pos.x)}
@@ -1810,13 +1772,13 @@ export function GameCanvas({
                         height="14"
                         rx="4"
                         fill="#1E1B18"
-                        stroke="#3D352F"
+                        stroke="#51483F"
                         strokeWidth="0.8"
                       />
                       <text
                         textAnchor="middle"
                         y="3"
-                        className="fill-stone-300 text-[8px] font-semibold tracking-wide select-none"
+                        className="fill-stone-100 text-[9px] font-semibold tracking-wide select-none"
                       >
                         {shortLabel}
                       </text>

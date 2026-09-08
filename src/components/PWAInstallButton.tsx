@@ -74,7 +74,7 @@ export const PWAInstallButton: React.FC = () => {
                   <h3 id={titleId} className="font-display text-lg font-bold text-[#FAF9F6]">
                     Add to Home Screen
                   </h3>
-                  <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+                  <p className="text-xs text-stone-300 mt-1 leading-relaxed">
                     Plays like a phone app — full screen, offline-ready rescues.
                   </p>
                 </div>
@@ -119,7 +119,7 @@ export const PWAInstallButton: React.FC = () => {
                 </li>
               </ol>
 
-              <p className="mt-4 text-[11px] text-stone-400 leading-snug">
+              <p className="mt-4 text-[11px] text-stone-300 leading-snug">
                 Use Safari (not an in-app browser). On Android Chrome, use Install app when prompted.
               </p>
 
