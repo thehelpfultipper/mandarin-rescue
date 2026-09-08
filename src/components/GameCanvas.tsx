@@ -5,7 +5,7 @@ import { Level, PlayerProgress } from '../types';
 import { getVocabularyStage } from '../lib/persistence';
 import { freshBoardSeed, instantiateLevel } from '../lib/boardVariants';
 import { patrolPositionAt } from '../lib/mazeKit';
-import { orderedContactsAlongPath, pathTouchesPoint, pointToPathSegmentDistance } from '../lib/pathGeometry';
+import { orderedContactsAlongPath, nearestPointOnPolyline, pathTouchesPoint, pathTouchesPolyline, pointToPathSegmentDistance } from '../lib/pathGeometry';
 
 /** Visual walls are ~7px thick; collision uses this radius in 0–100 board space. */
 const WALL_COLLISION_THICKNESS = 2.6;
@@ -797,6 +797,26 @@ export function GameCanvas({
       return;
     }
 
+    // Patrol corridors are spatial traps (like fire) — live catcher timing does not decide.
+    const touchedPatrol = (level.patrols || []).find(p =>
+      pathTouchesPolyline(drawnPath, p.waypoints, p.radius, true)
+    );
+    if (touchedPatrol) {
+      const hit = nearestPointOnPolyline(
+        drawnPath[Math.floor(drawnPath.length / 2)] || drawnPath[0],
+        touchedPatrol.waypoints,
+        true
+      );
+      triggerSimulationFailure(
+        hit.x,
+        hit.y,
+        'hazard',
+        `${touchedPatrol.label} (${touchedPatrol.chineseChar}) guards that corridor — take a different route.`,
+        'drawing'
+      );
+      return;
+    }
+
     // Begin animated execution run
     setRhythmState('anticipation');
     setTimeout(() => {
@@ -831,12 +851,10 @@ export function GameCanvas({
       }
       return length;
     })();
-    const patrols = level.patrols || [];
     let cancelled = false;
-    let hitPatrol = false;
 
     const tick = (ts: number) => {
-      if (cancelled || hitPatrol) return;
+      if (cancelled) return;
       const last = simLastTsRef.current;
       simLastTsRef.current = ts;
       const dt = last == null ? 0 : Math.min(0.05, (ts - last) / 1000);
@@ -844,23 +862,6 @@ export function GameCanvas({
       simDistanceRef.current = Math.min(totalLen, simDistanceRef.current + BEAGLE_SPEED * dt);
       const { x, y, done } = pointAlongPath(drawnPath, simDistanceRef.current);
       setBeaglePos({ x, y });
-
-      // Moving catchers / technicians — time your crossing
-      const clock = performance.now() / 1000;
-      for (const p of patrols) {
-        const pp = patrolPositionAt(p.waypoints, p.speed, clock, p.phase);
-        if (Math.hypot(pp.x - x, pp.y - y) < p.radius) {
-          hitPatrol = true;
-          triggerSimulationFailure(
-            x,
-            y,
-            'hazard',
-            `${p.label} (${p.chineseChar}) intercepted the route — wait for a gap in their patrol, or take a safer corridor.`,
-            'drawing'
-          );
-          return;
-        }
-      }
 
       if (done || simDistanceRef.current >= totalLen - 1e-4) {
         const end = drawnPath[drawnPath.length - 1];
@@ -879,7 +880,7 @@ export function GameCanvas({
         simRafRef.current = null;
       }
     };
-  }, [isSimulating, drawnPath, level.patrols]);
+  }, [isSimulating, drawnPath]);
 
   // Failure state handler
   const triggerSimulationFailure = (

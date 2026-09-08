@@ -70,7 +70,8 @@ export type SwitchTrigger = z.infer<typeof SwitchTriggerSchema>;
 
 /**
  * Moving hazard that patrols waypoints at constant speed (board units / sec).
- * Collision is evaluated during path simulation — timing + route both matter.
+ * Motion is visual tension; collision is geometric against the patrol corridor
+ * (drawn route choice), not live catcher timing.
  */
 export const PatrolSchema = z.object({
   id: z.string(),
@@ -112,7 +113,7 @@ export const LevelSchema = z.object({
   lockedDoors: z.array(LockedDoorSchema).optional(),
   oneWayGates: z.array(OneWayGateSchema).optional(),
   switches: z.array(SwitchTriggerSchema).optional(),
-  /** Moving catchers / technicians — L6+ puzzle pressure */
+  /** Moving catchers / technicians — L6+ decoy-corridor pressure (route choice) */
   patrols: z.array(PatrolSchema).optional(),
   routeLengthLimit: z.number().optional(),
   vocabularyScaffold: z.array(VocabularyItemSchema).optional(),

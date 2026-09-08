@@ -3,7 +3,8 @@ import { H, V, patrol } from './mazeKit';
 
 /**
  * Curated no-AI curriculum — every room is a real drawing puzzle:
- * narrow corridors, forced bends, dead-end traps, and (L6+) moving patrols.
+ * narrow corridors, forced bends, dead-end traps, and (L6+) moving patrols
+ * that guard competing decoy corridors (route choice — not live timing).
  * Linguistic distractors remain; path geometry must also challenge.
  */
 export const DEFAULT_LEVELS: Level[] = [
@@ -248,7 +249,7 @@ export const DEFAULT_LEVELS: Level[] = [
     mandarinClue: '先喝水，后吃肉，再回家',
     pinyinClue: 'xiān hē shuǐ, hòu chī ròu, zài huí jiā',
     englishTranslation: 'Drink water first, then eat meat, then go home',
-    hint: 'Water (水) unlocks the way to Meat (肉). Watch the Catcher (捕), then continue Home (家).',
+    hint: 'Water (水) unlocks the way to Meat (肉). Avoid the Catcher (捕) corridor, then continue Home (家).',
     missionFraming: 'Three stops in clue order — water unlocks the meat door.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 14, y: 90, color: 'bg-amber-500' },
@@ -513,7 +514,7 @@ export const DEFAULT_LEVELS: Level[] = [
     mandarinClue: '走捷径，省能源回家',
     pinyinClue: 'zǒu jié jìng, shěng néng yuán huí jiā',
     englishTranslation: 'Take the shortcut, save energy to go home',
-    hint: 'Ink is scarce. Find Switch (开), wait for a patrol gap, and use the opened passage to Home.',
+    hint: 'Ink is scarce. Find Switch (开), skip the Catcher (捕) corridor, and use the opened passage to Home.',
     missionFraming: 'Flip the switch for the shortcut — the long way burns your ink.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 12, y: 88, color: 'bg-amber-500' },

@@ -21,6 +21,7 @@
 * Collision uses thick barriers so visual wall thickness matches physics. Corridors must stay wide enough that a path remains drawable inside the 3–97 play clamp — solvability tests use the same rules.
 * `requiredNodeIds` is an ordered sequence; visiting the right nodes in the wrong order fails.
 * Forbidden nodes and hazards are always reachable so language — not geometry alone — decides success.
+* L6+ moving patrols (catchers / technicians) animate for tension but fail only if the drawn path enters their **corridor** (route choice). Live catcher timing never decides win/loss.
 
 ### 3.1 Hazard & distractor placement (non-negotiable)
 Runtime boards come from `generateMazeLevel` (`src/lib/mazeGenerator.ts`). Placement must follow **competing decoy corridors**, not decorative dead ends:

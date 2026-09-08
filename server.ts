@@ -396,8 +396,9 @@ function sanitizeGeminiOutput(data: any): any {
     const before = lvl.mandarinClue;
     const filtered = Array.from(before)
       .filter(
-        (char: string) =>
-          PUNCTUATION_AND_SYMBOLS.has(char) || /\s/.test(char) || APPROVED_VOCAB_CHARS.has(char)
+        (char) =>
+          typeof char === 'string' &&
+          (PUNCTUATION_AND_SYMBOLS.has(char) || /\s/.test(char) || APPROVED_VOCAB_CHARS.has(char))
       )
       .join('');
     if (filtered !== before) {
@@ -405,6 +406,7 @@ function sanitizeGeminiOutput(data: any): any {
         ...new Set(
           Array.from(before).filter(
             (c) =>
+              typeof c === 'string' &&
               !PUNCTUATION_AND_SYMBOLS.has(c) && !/\s/.test(c) && !APPROVED_VOCAB_CHARS.has(c)
           )
         )

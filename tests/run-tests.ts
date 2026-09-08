@@ -2,7 +2,7 @@ import { LevelSchema, PlayerProgressSchema, GeminiAdaptationResponseSchema } fro
 import { DEFAULT_LEVELS, DEFAULT_PROGRESS } from '../src/lib/persistence';
 import { boardGeometryKey, instantiateLevel } from '../src/lib/boardVariants';
 import { GeneratedMazeLevel, getMazeProfile } from '../src/lib/mazeGenerator';
-import { orderedContactsAlongPath, pathTouchesPoint } from '../src/lib/pathGeometry';
+import { orderedContactsAlongPath, pathTouchesPoint, pathTouchesPolyline } from '../src/lib/pathGeometry';
 
 let passed = 0;
 let failed = 0;
@@ -791,10 +791,14 @@ runTest('Validate Generated Maze Topology, Difficulty, and Replay Variety', () =
 
       const levelNumber = parseInt(template.id.replace('lvl_', ''), 10);
       if (levelNumber >= 6) {
-        if (metrics.safePatrolStarts < 3 || metrics.blockedPatrolStarts < 3) {
+        if (
+          metrics.patrolsClearOfSolution !== (board.patrols || []).length ||
+          metrics.patrolsOnCompetingPath !== (board.patrols || []).length
+        ) {
           throw new Error(
-            `${template.id} seed=${seed} patrol is not meaningful and fair: ` +
-            `${metrics.safePatrolStarts} safe / ${metrics.blockedPatrolStarts} blocked starts`
+            `${template.id} seed=${seed} patrol corridors are not meaningful and fair: ` +
+            `${metrics.patrolsClearOfSolution} clear / ${metrics.patrolsOnCompetingPath} competing ` +
+            `of ${(board.patrols || []).length}`
           );
         }
         const solutionPoints = board.mazeMetadata.solutionCells.map(cellKey => {
@@ -803,10 +807,16 @@ runTest('Validate Generated Maze Topology, Difficulty, and Replay Variety', () =
           return { x: 6 + (col + 0.5) * step, y: 6 + (row + 0.5) * step };
         });
         for (const patrol of board.patrols || []) {
-          const crossesRoute = patrol.waypoints.some(waypoint =>
-            solutionPoints.some(point => Math.hypot(point.x - waypoint.x, point.y - waypoint.y) < 0.1)
+          if (pathTouchesPolyline(solutionPoints, patrol.waypoints, patrol.radius, true)) {
+            throw new Error(`${template.id} seed=${seed} patrol "${patrol.id}" intersects the true solution`);
+          }
+          const step = 88 / board.mazeMetadata.size;
+          const pressuresRoute = patrol.waypoints.some(waypoint =>
+            solutionPoints.some(point => Math.hypot(point.x - waypoint.x, point.y - waypoint.y) < step * 2.6)
           );
-          if (!crossesRoute) throw new Error(`${template.id} seed=${seed} patrol "${patrol.id}" never pressures the required route`);
+          if (!pressuresRoute) {
+            throw new Error(`${template.id} seed=${seed} patrol "${patrol.id}" is too far from any solution junction`);
+          }
         }
       }
       keys.add(boardGeometryKey(board));
@@ -850,6 +860,22 @@ runTest('Validate Sparse Pointer Segments Cannot Skip Nodes or Hazards', () => {
   }
   if (pathTouchesPoint(path, { x: 50, y: 57 }, 5)) {
     throw new Error(`Sparse segment reported a hazard outside the contact radius`);
+  }
+});
+
+runTest('Validate Patrol Corridor Collision Is Geometric (Not Timing)', () => {
+  const path = [{ x: 10, y: 50 }, { x: 90, y: 50 }];
+  const corridor = [
+    { x: 40, y: 40 },
+    { x: 50, y: 50 },
+    { x: 60, y: 40 }
+  ];
+  if (!pathTouchesPolyline(path, corridor, 6, false)) {
+    throw new Error('Drawn path should fail when it crosses a patrol corridor');
+  }
+  const clearPath = [{ x: 10, y: 20 }, { x: 90, y: 20 }];
+  if (pathTouchesPolyline(clearPath, corridor, 6, false)) {
+    throw new Error('Path clear of patrol corridor must not collide');
   }
 });
 

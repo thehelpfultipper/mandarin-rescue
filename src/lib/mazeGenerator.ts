@@ -1,5 +1,5 @@
 import { GameNode, Level, LockedDoor, OneWayGate, Patrol, Wall } from '../types';
-import { patrolLoopLength, patrolPositionAt } from './mazeKit';
+import { pathTouchesPolyline } from './pathGeometry';
 
 type Cell = { row: number; col: number };
 
@@ -25,8 +25,10 @@ export type MazeMetrics = {
   deepestDecoy: number;
   longestStraightRun: number;
   bfsExpanded: number;
-  safePatrolStarts: number;
-  blockedPatrolStarts: number;
+  /** Patrols whose corridor stays clear of the true solution */
+  patrolsClearOfSolution: number;
+  /** Patrols seated on a competing decoy corridor (not a decorative stub) */
+  patrolsOnCompetingPath: number;
 };
 
 export type DistractorPlacement = {
@@ -70,7 +72,6 @@ export type GeneratedMazeLevel = Level & {
 
 const BOARD_MIN = 6;
 const BOARD_MAX = 94;
-const BEAGLE_SPEED = 55;
 
 const PROFILES: Record<string, MazeProfile> = {
   lvl_1: { size: 7, newestBias: 0.68, braidChance: 0, attempts: 80, minRouteSteps: 18, minTurns: 7, minDecisions: 3, minDecoyDepth: 2, maxStraightRun: 5 },
@@ -829,95 +830,258 @@ function makeSpecialBarriers(
   return { lockedDoors, oneWayGates, valid: true };
 }
 
-function makePatrols(
-  template: Level,
+/**
+ * Grow an off-route cell chain from a branch root (never re-entering the solution).
+ */
+function growOffRouteCorridor(
   graph: Map<string, Cell[]>,
-  route: Cell[],
-  size: number,
+  routeSet: Set<string>,
+  start: Cell,
+  maxLen: number,
   rng: () => number
-): Patrol[] | null {
-  const templates = template.patrols || [];
-  if (templates.length === 0) return [];
-  const routeSet = new Set(route.map(key));
-  const junctions = route
-    .slice(3, -3)
-    .filter(cell => (graph.get(key(cell)) || []).some(next => !routeSet.has(key(next))));
-  if (junctions.length < templates.length) return null;
-  shuffle(junctions, rng);
-
-  return templates.map((patrolTemplate, index) => {
-    const center = junctions[index];
-    const branch = (graph.get(key(center)) || []).find(next => !routeSet.has(key(next)))!;
-    const routeIndex = route.findIndex(cell => key(cell) === key(center));
-    const alongRoute = route[Math.max(0, routeIndex - 1)];
-    return {
-      ...patrolTemplate,
-      waypoints: [
-        cellPoint(branch, size),
-        cellPoint(center, size),
-        cellPoint(alongRoute, size),
-        cellPoint(center, size)
-      ],
-      radius: Math.min(patrolTemplate.radius, ((BOARD_MAX - BOARD_MIN) / size) * 0.48),
-      phase: rng() * 5
-    };
-  });
+): Cell[] {
+  const path = [start];
+  const used = new Set([key(start)]);
+  while (path.length < maxLen) {
+    const cur = path[path.length - 1];
+    const nexts = shuffle(
+      (graph.get(key(cur)) || []).filter(n => !routeSet.has(key(n)) && !used.has(key(n))),
+      rng
+    );
+    if (nexts.length === 0) break;
+    used.add(key(nexts[0]));
+    path.push(nexts[0]);
+  }
+  return path;
 }
 
-function patrolTiming(route: Cell[], size: number, patrols: Patrol[]): { safe: number; blocked: number } {
-  if (patrols.length === 0) return { safe: 0, blocked: 0 };
-  const points = route.map(cell => cellPoint(cell, size));
-  const segmentLength = (BOARD_MAX - BOARD_MIN) / size;
-  const totalTime = ((points.length - 1) * segmentLength) / BEAGLE_SPEED;
-  const periods = patrols.map(patrol => patrolLoopLength(patrol.waypoints) / patrol.speed);
-  const horizon = Math.max(...periods, 1);
-  let safe = 0;
-  let blocked = 0;
+type PatrolCorridorCandidate = {
+  attachmentIndex: number;
+  cells: Cell[];
+};
 
-  for (let sample = 0; sample < 32; sample++) {
-    const departure = (sample / 32) * horizon;
-    let hit = false;
-    for (let elapsed = 0; elapsed <= totalTime && !hit; elapsed += 0.04) {
-      const distance = Math.min(points.length - 1, (elapsed * BEAGLE_SPEED) / segmentLength);
-      const index = Math.min(points.length - 2, Math.floor(distance));
-      const fraction = distance - index;
-      const a = points[index];
-      const b = points[index + 1];
-      const dog = { x: a.x + (b.x - a.x) * fraction, y: a.y + (b.y - a.y) * fraction };
-      for (const patrol of patrols) {
-        const position = patrolPositionAt(patrol.waypoints, patrol.speed, departure + elapsed, patrol.phase);
-        if (Math.hypot(position.x - dog.x, position.y - dog.y) < patrol.radius) {
-          hit = true;
+/**
+ * Collect competing decoy corridors (same rule as distractors): off-route chains
+ * on a simple alternate path between consecutive required stops.
+ */
+function collectPatrolCorridors(
+  graph: Map<string, Cell[]>,
+  route: Cell[],
+  requiredIds: string[],
+  placements: Map<string, Cell>,
+  rng: () => number
+): PatrolCorridorCandidate[] {
+  const routeIndex = new Map(route.map((cell, index) => [key(cell), index]));
+  const requiredRouteIndices = requiredIds
+    .map(id => ({ id, index: routeIndex.get(key(placements.get(id)!)) ?? -1 }))
+    .filter(item => item.index >= 0)
+    .sort((a, b) => a.index - b.index);
+  if (requiredRouteIndices.length < 2) return [];
+
+  const intendedSet = new Set(route.map(key));
+  const out: PatrolCorridorCandidate[] = [];
+  const routeLast = Math.max(1, route.length - 1);
+  const stageLimit = requiredRouteIndices.length - 1;
+
+  for (let stage = 0; stage < stageLimit; stage++) {
+    const stageStart = requiredRouteIndices[stage].index;
+    const stageEnd = requiredRouteIndices[stage + 1].index;
+    const from = route[stageStart];
+    const to = route[stageEnd];
+
+    for (const token of graph.keys()) {
+      if (intendedSet.has(token)) continue;
+      const cell = parseKey(token);
+      if (!liesOnSimplePath(graph, from, to, cell)) continue;
+
+      const via = pathBetween(graph, from, cell);
+      if (via.length < 2) continue;
+      let attachment = from;
+      let attachmentIndex = stageStart;
+      for (const step of via) {
+        const idx = routeIndex.get(key(step));
+        if (idx != null && idx >= stageStart && idx <= stageEnd) {
+          attachment = step;
+          attachmentIndex = idx;
+        } else {
           break;
         }
       }
+      const frac = attachmentIndex / routeLast;
+      if (frac < 0.08 || frac > 0.55) continue;
+
+      const leavePath = pathBetween(graph, attachment, cell);
+      // leavePath[0] is on-route; seat the patrol only on off-route cells.
+      const cells = leavePath.slice(1);
+      if (cells.length < 3) {
+        // Extend along the alternate toward `to` while staying off the intended interior.
+        const toward = pathBetween(graph, cell, to);
+        for (const step of toward.slice(1)) {
+          if (intendedSet.has(key(step))) break;
+          if (cells.some(c => key(c) === key(step))) continue;
+          cells.push(step);
+          if (cells.length >= 4) break;
+        }
+      }
+      if (cells.length < 3) continue;
+
+      // Prefer a stable 3–5 cell corridor for readable tension.
+      const trimmed = cells.slice(0, Math.min(5, cells.length));
+      out.push({ attachmentIndex, cells: trimmed });
     }
-    if (hit) blocked++;
-    else safe++;
   }
-  return { safe, blocked };
+
+  shuffle(out, rng);
+  // Deduplicate by attachment so two patrols don't stack on one junction.
+  const seen = new Set<number>();
+  const unique: PatrolCorridorCandidate[] = [];
+  for (const candidate of out) {
+    if (seen.has(candidate.attachmentIndex)) continue;
+    seen.add(candidate.attachmentIndex);
+    unique.push(candidate);
+  }
+  return unique;
 }
 
-function tunePatrolPhases(route: Cell[], size: number, patrols: Patrol[], rng: () => number): Patrol[] {
-  if (patrols.length === 0) return patrols;
-  let best = patrols;
-  let bestBalance = -1;
-  let bestSafe = -1;
-  for (let attempt = 0; attempt < 72; attempt++) {
-    const candidate = patrols.map(patrol => {
-      const period = patrolLoopLength(patrol.waypoints) / patrol.speed;
-      return { ...patrol, phase: rng() * period };
-    });
-    const timing = patrolTiming(route, size, candidate);
-    const balance = Math.min(timing.safe, timing.blocked);
-    if (balance > bestBalance || (balance === bestBalance && timing.safe > bestSafe)) {
-      best = candidate;
-      bestBalance = balance;
-      bestSafe = timing.safe;
+function patrolClearOfSolution(patrol: Patrol, route: Cell[], size: number): boolean {
+  const solution = route.map(cell => cellPoint(cell, size));
+  return !pathTouchesPolyline(solution, patrol.waypoints, patrol.radius, true);
+}
+
+/**
+ * Seat catchers on competing decoy corridors — never on the true solution.
+ * Motion remains for visual tension; fail/success is route geometry only.
+ */
+function makePatrols(
+  template: Level,
+  graph: Map<string, Cell[]>,
+  intendedRoute: Cell[],
+  size: number,
+  rng: () => number,
+  placements: Map<string, Cell>,
+  fullRoute: Cell[] = intendedRoute,
+  shortcut: ShortcutPlacement | null = null
+): Patrol[] | null {
+  const templates = template.patrols || [];
+  if (templates.length === 0) return [];
+
+  let candidates = collectPatrolCorridors(
+    graph,
+    intendedRoute,
+    template.requiredNodeIds,
+    placements,
+    rng
+  );
+
+  // Shortcut rooms: the long-way diameter is the competing corridor (same as L11 fire).
+  if (shortcut) {
+    const longLen = shortcut.toIndex - shortcut.fromIndex - 1;
+    if (longLen >= 3) {
+      const cells = fullRoute.slice(
+        shortcut.fromIndex + 1,
+        shortcut.fromIndex + 1 + Math.min(5, longLen)
+      );
+      if (cells.length >= 3) {
+        candidates = [{ attachmentIndex: shortcut.fromIndex, cells }, ...candidates];
+      }
     }
-    if (timing.safe >= 8 && timing.blocked >= 8) break;
   }
-  return best;
+
+  if (candidates.length < templates.length) {
+    const more = collectPatrolCorridors(
+      graph,
+      fullRoute,
+      template.requiredNodeIds,
+      placements,
+      rng
+    );
+    candidates = [...candidates, ...more];
+  }
+
+  // Deduplicate attachments again after merges.
+  const deduped: PatrolCorridorCandidate[] = [];
+  const seenAttach = new Set<number>();
+  for (const candidate of candidates) {
+    if (seenAttach.has(candidate.attachmentIndex)) continue;
+    seenAttach.add(candidate.attachmentIndex);
+    deduped.push(candidate);
+  }
+  candidates = deduped;
+
+  // Dual-patrol rooms: split long decoy corridors into a second seat when needed.
+  if (candidates.length < templates.length) {
+    const extras: PatrolCorridorCandidate[] = [];
+    for (const candidate of candidates) {
+      if (candidate.cells.length >= 5) {
+        extras.push({ attachmentIndex: candidate.attachmentIndex, cells: candidate.cells.slice(2) });
+      } else if (candidate.cells.length >= 4) {
+        extras.push({ attachmentIndex: candidate.attachmentIndex, cells: candidate.cells.slice(1) });
+      }
+    }
+    for (const extra of extras) {
+      if (candidates.length >= templates.length) break;
+      candidates.push(extra);
+    }
+  }
+
+  // Last resort: deep off-route spurs at early–mid junctions (readable wrong turns).
+  if (candidates.length < templates.length) {
+    const routeSet = new Set(intendedRoute.map(key));
+    const routeLast = Math.max(1, intendedRoute.length - 1);
+    const usedCells = new Set(candidates.flatMap(c => c.cells.map(key)));
+    for (let i = 2; i < intendedRoute.length - 2 && candidates.length < templates.length + 4; i++) {
+      const frac = i / routeLast;
+      if (frac < 0.08 || frac > 0.58) continue;
+      const roots = shuffle(
+        (graph.get(key(intendedRoute[i])) || []).filter(n => !routeSet.has(key(n))),
+        rng
+      );
+      for (const root of roots) {
+        const cells = growOffRouteCorridor(graph, routeSet, root, 5, rng);
+        if (cells.length < 3) continue;
+        if (cells.every(c => usedCells.has(key(c)))) continue;
+        for (const c of cells) usedCells.add(key(c));
+        candidates.push({ attachmentIndex: i, cells });
+        break;
+      }
+    }
+  }
+
+  if (candidates.length < templates.length) return null;
+
+  const usedSeats = new Set<string>();
+  const patrols: Patrol[] = [];
+
+  for (const patrolTemplate of templates) {
+    let placed: Patrol | null = null;
+    for (const pick of candidates) {
+      const seat = `${pick.attachmentIndex}:${pick.cells.map(key).join('|')}`;
+      if (usedSeats.has(seat)) continue;
+
+      const forward = pick.cells.map(cell => cellPoint(cell, size));
+      const waypoints =
+        forward.length >= 4
+          ? forward
+          : [...forward, ...[...forward].reverse().slice(1, -1)];
+      if (waypoints.length < 2) continue;
+
+      const radius = Math.min(patrolTemplate.radius, ((BOARD_MAX - BOARD_MIN) / size) * 0.42);
+      const patrol: Patrol = {
+        ...patrolTemplate,
+        waypoints,
+        radius,
+        phase: rng() * 5
+      };
+      if (!patrolClearOfSolution(patrol, intendedRoute, size)) continue;
+      usedSeats.add(seat);
+      placed = patrol;
+      break;
+    }
+    if (!placed) return null;
+    patrols.push(placed);
+  }
+
+  return patrols;
 }
 
 const WALL_THICKNESS = 2.6;
@@ -1173,7 +1337,10 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
   const requiredCells = template.requiredNodeIds
     .map(id => placements.get(id))
     .filter((cell): cell is Cell => Boolean(cell));
-  const corridorNeed = Math.max(2, template.nodes.length - template.requiredNodeIds.length + 1);
+  const corridorNeed = Math.max(
+    2,
+    template.nodes.length - template.requiredNodeIds.length + 1 + (template.patrols?.length || 0)
+  );
   ensureCompetingCorridors(
     profile.size,
     treeEdges,
@@ -1250,10 +1417,19 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
   const walls = makeWalls(profile.size, treeEdges);
   const special = makeSpecialBarriers(template, route, placements, profile.size, walls, distractors, shortcut);
   if (!special.valid) return null;
-  const initialPatrols = makePatrols(template, graph, intendedRoute, profile.size, rng);
+  const initialPatrols = makePatrols(
+    template,
+    graph,
+    intendedRoute,
+    profile.size,
+    rng,
+    placements,
+    route,
+    shortcut
+  );
   if (!initialPatrols) return null;
-  const patrols = tunePatrolPhases(intendedRoute, profile.size, initialPatrols, rng);
-  const timing = patrolTiming(intendedRoute, profile.size, patrols);
+  const patrols = initialPatrols;
+  const clearCount = patrols.filter(p => patrolClearOfSolution(p, intendedRoute, profile.size)).length;
   const metrics: MazeMetrics = {
     routeSteps: intendedRoute.length - 1,
     routeLength,
@@ -1264,11 +1440,11 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
     deepestDecoy: info.deepestDecoy,
     longestStraightRun: routeShape.longestStraightRun,
     bfsExpanded,
-    safePatrolStarts: timing.safe,
-    blockedPatrolStarts: timing.blocked
+    // makePatrols only emits decoy-corridor seats that clear the true solution.
+    patrolsClearOfSolution: clearCount,
+    patrolsOnCompetingPath: clearCount === patrols.length ? patrols.length : 0
   };
-  const patrolPass = patrols.length === 0 || (timing.safe >= 3 && timing.blocked >= 3);
-  if (!patrolPass) return null;
+  if (patrols.length > 0 && clearCount !== patrols.length) return null;
   const levelNumber = Number.parseInt(template.id.replace('lvl_', ''), 10);
   const inkAllowance = levelNumber <= 2 ? 1.35 : levelNumber <= 5 ? 1.28 : 1.22;
   const generatedRouteLimit = Math.ceil(routeLength * inkAllowance);
