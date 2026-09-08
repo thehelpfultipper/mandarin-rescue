@@ -6,7 +6,11 @@ import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   // GitHub project Pages needs e.g. VITE_BASE=/mandarin-rescue/
-  const base = process.env.VITE_BASE || '/';
+  const configuredBase = process.env.VITE_BASE || '/';
+  const base = configuredBase.endsWith('/') ? configuredBase : `${configuredBase}/`;
+  // Installed PWAs must launch inside the same base path as the deployed app.
+  // Absolute root URLs would send project-Pages installs to the user-site root.
+  const pwaUrl = (asset = '') => `${base}${asset}`;
 
   return {
     base,
@@ -19,7 +23,7 @@ export default defineConfig(() => {
         // Avoid workbox+terser early-exit hangs on some Node environments
         minify: false,
         manifest: {
-          id: '/',
+          id: pwaUrl(),
           name: 'Mandarin Rescue',
           short_name: 'MandarinRescue',
           description: 'A mobile-first Mandarin learning puzzle game where drawing routes solves missions.',
@@ -28,23 +32,23 @@ export default defineConfig(() => {
           display: 'standalone',
           display_override: ['standalone', 'minimal-ui'],
           orientation: 'portrait',
-          start_url: '/',
-          scope: '/',
+          start_url: pwaUrl(),
+          scope: pwaUrl(),
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: pwaUrl('pwa-192x192.png'),
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: pwaUrl('pwa-512x512.png'),
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: pwaUrl('pwa-maskable-512x512.png'),
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
