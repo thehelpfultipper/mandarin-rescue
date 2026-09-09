@@ -8,7 +8,7 @@ import { DEFAULT_LEVELS, DEFAULT_PROGRESS } from '../src/lib/persistence';
 import { boardGeometryKey, instantiateLevel } from '../src/lib/boardVariants';
 import { GeneratedMazeLevel, getMazeProfile } from '../src/lib/mazeGenerator';
 import { orderedContactsAlongPath, pathTouchesPoint, pathTouchesPolyline } from '../src/lib/pathGeometry';
-import { getScreenSpaceBarrierContact } from '../src/lib/mazeInteractionGeometry';
+import { getScreenSpaceBarrierContact, barrierSeparatesPoints, segmentCrossesBarrier } from '../src/lib/mazeInteractionGeometry';
 import { adaptiveRuntimeId } from '../src/lib/adaptClient';
 import {
   isValidLevelResponse,
@@ -863,6 +863,36 @@ runTest('Validate Mobile Wall Contact Forgiveness in Screen Space', () => {
     0
   );
   if (!crossing) throw new Error('A true wall-centerline crossing must always block');
+});
+
+runTest('Validate Near-Goal Across a Wall Does Not Count as Reaching Home', () => {
+  const homeLip = { x1: 4, y1: 18, x2: 38, y2: 18 };
+  const goal = { x: 14, y: 10 };
+  // Path tip on the wrong side of the home lip, still within the 9.5 success radius.
+  const tipAgainstWall = { x: 14.2, y: 19.2 };
+  const dist = Math.hypot(tipAgainstWall.x - goal.x, tipAgainstWall.y - goal.y);
+  if (dist > 9.5) {
+    throw new Error('Test fixture must sit inside the Euclidean success radius');
+  }
+  const blocked = barrierSeparatesPoints(tipAgainstWall, goal, homeLip);
+  if (!blocked) {
+    throw new Error('A tip across the home lip must be treated as separated from 家');
+  }
+  const tipInsideHome = { x: 14, y: 12 };
+  if (barrierSeparatesPoints(tipInsideHome, goal, homeLip)) {
+    throw new Error('A tip already inside the home corridor must remain clear to 家');
+  }
+
+  // Chord skirting past the wall endpoint (no true centerline hit) still separates.
+  const skirtWall = { x1: 0, y1: 50, x2: 30, y2: 50 };
+  const tipPastEnd = { x: 36, y: 53 };
+  const goalAcrossSkirt = { x: 25, y: 47 };
+  if (segmentCrossesBarrier(tipPastEnd, goalAcrossSkirt, skirtWall)) {
+    throw new Error('Skirt fixture must not register a true centerline hit');
+  }
+  if (!barrierSeparatesPoints(tipPastEnd, goalAcrossSkirt, skirtWall)) {
+    throw new Error('Opposite-side tip skirting a wall endpoint must still be blocked');
+  }
 });
 
 runTest('Validate Sparse Segment Triggers Activate Before Their Barrier', () => {

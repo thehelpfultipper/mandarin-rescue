@@ -6,7 +6,7 @@ import { getVocabularyStage } from '../lib/persistence';
 import { freshBoardSeed, instantiateLevel, type InstantiatedLevel } from '../lib/boardVariants';
 import { patrolPositionAt } from '../lib/mazeKit';
 import { orderedContactsAlongPath, nearestPointOnPolyline, pathTouchesPoint, pathTouchesPolyline, pointToPathSegmentDistance } from '../lib/pathGeometry';
-import { getScreenSpaceBarrierContact } from '../lib/mazeInteractionGeometry';
+import { getScreenSpaceBarrierContact, barrierSeparatesPoints } from '../lib/mazeInteractionGeometry';
 
 /** Fixed screen-space radii keep portrait corridors equally forgiving in both directions. */
 const WALL_CONTACT_RADIUS_PX = 4;
@@ -522,6 +522,41 @@ export function GameCanvas({
     return { keys, switches, checkpoints, order, disabledWalls };
   };
 
+  /**
+   * Euclidean near-goal is not enough: the tip must sit on the same side of
+   * active barriers as 家 (rejects “stopped against the home wall” wins).
+   */
+  const barrierBetweenPoints = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    keys: string[],
+    disabledWalls: string[]
+  ): { x: number; y: number; type: 'wall' | 'door' | 'oneway' } | null => {
+    for (const wall of level.walls || []) {
+      if (disabledWalls.includes(wall.id)) continue;
+      const hit = barrierSeparatesPoints(from, to, wall);
+      if (hit) return { ...hit, type: 'wall' };
+    }
+    for (const door of level.lockedDoors || []) {
+      if (keys.includes(door.keyNodeId)) continue;
+      const hit = barrierSeparatesPoints(from, to, door);
+      if (hit) return { ...hit, type: 'door' };
+    }
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    for (const gate of level.oneWayGates || []) {
+      const hit = barrierSeparatesPoints(from, to, gate);
+      if (!hit) continue;
+      let illegal = false;
+      if (gate.allowDirection === 'up' && dy > 0) illegal = true;
+      if (gate.allowDirection === 'down' && dy < 0) illegal = true;
+      if (gate.allowDirection === 'left' && dx > 0) illegal = true;
+      if (gate.allowDirection === 'right' && dx < 0) illegal = true;
+      if (illegal) return { ...hit, type: 'oneway' };
+    }
+    return null;
+  };
+
   // Recalculate which items, switches, checkpoints, and keys are contacted along a given path
   const evaluateInteractionsAlongPath = (path: { x: number; y: number }[]) => {
     const { keys, switches, checkpoints, order, disabledWalls } = computeInteractionsAlongPath(path);
@@ -541,7 +576,8 @@ export function GameCanvas({
         return n?.type === 'checkpoint';
       });
       const allRequiredVisited = requiredCheckpoints.every(id => checkpoints.includes(id));
-      setReachGoalNotice(distToGoal <= 8.5 && allRequiredVisited);
+      const clearToGoal = !barrierBetweenPoints(lastPt, goalNode, keys, disabledWalls);
+      setReachGoalNotice(distToGoal <= 8.5 && allRequiredVisited && clearToGoal);
     } else {
       setReachGoalNotice(false);
     }
@@ -935,6 +971,31 @@ export function GameCanvas({
       setRhythmState('settlement');
       setFailureMarker({ x: endPt.x, y: endPt.y, type: 'limit' });
       setFeedbackMsg('Path stopped short of 家 — draw all the way to the home gate.');
+      setFeedbackKind('drawing');
+      onFailure?.('drawing', [], level);
+      setTimeout(() => {
+        setRhythmState('settle');
+      }, 600);
+      return;
+    }
+
+    // Near 家 but still separated by a barrier (e.g. home lip) is not a rescue.
+    const blockedFromGoal = barrierBetweenPoints(endPt, goalNode, live.keys, live.disabledWalls);
+    if (blockedFromGoal) {
+      setStatus('failed');
+      setRhythmState('settlement');
+      setFailureMarker({
+        x: blockedFromGoal.x,
+        y: blockedFromGoal.y,
+        type: blockedFromGoal.type
+      });
+      setFeedbackMsg(
+        blockedFromGoal.type === 'door'
+          ? 'Locked gate still between you and 家 — grab the key, then finish inside.'
+          : blockedFromGoal.type === 'oneway'
+            ? 'One-way gate still between you and 家 — approach from the allowed side.'
+            : 'Wall still between you and 家 — draw into the home corridor, not just up to the wall.'
+      );
       setFeedbackKind('drawing');
       onFailure?.('drawing', [], level);
       setTimeout(() => {

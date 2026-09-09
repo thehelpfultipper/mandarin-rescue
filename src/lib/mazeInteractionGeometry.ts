@@ -44,6 +44,70 @@ function pointToSegmentDistance(
   );
 }
 
+/** True centerline crossing only. */
+export function segmentCrossesBarrier(
+  start: BoardPoint,
+  end: BoardPoint,
+  barrier: BoardBarrier
+): BoardPoint | null {
+  return lineIntersection(
+    start,
+    end,
+    { x: barrier.x1, y: barrier.y1 },
+    { x: barrier.x2, y: barrier.y2 }
+  );
+}
+
+function crossSide(origin: BoardPoint, along: BoardPoint, point: BoardPoint): number {
+  return (along.x - origin.x) * (point.y - origin.y) - (along.y - origin.y) * (point.x - origin.x);
+}
+
+function nearestPointOnSegment(
+  point: BoardPoint,
+  start: BoardPoint,
+  end: BoardPoint
+): BoardPoint {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared < 1e-8) return { ...start };
+  const t = Math.max(0, Math.min(1, (
+    (point.x - start.x) * dx + (point.y - start.y) * dy
+  ) / lengthSquared));
+  return { x: start.x + t * dx, y: start.y + t * dy };
+}
+
+/**
+ * Tip→goal separation for win checks: centerline cross, or opposite half-planes
+ * with the chord skirting within `endpointSlack` of the finite barrier (MVP).
+ */
+export function barrierSeparatesPoints(
+  start: BoardPoint,
+  end: BoardPoint,
+  barrier: BoardBarrier,
+  endpointSlack = 1.5
+): BoardPoint | null {
+  const crossing = segmentCrossesBarrier(start, end, barrier);
+  if (crossing) return crossing;
+
+  const wallA = { x: barrier.x1, y: barrier.y1 };
+  const wallB = { x: barrier.x2, y: barrier.y2 };
+  const sideStart = crossSide(wallA, wallB, start);
+  const sideEnd = crossSide(wallA, wallB, end);
+  if (sideStart * sideEnd >= 0) return null;
+
+  const chordDistToWall = Math.min(
+    pointToSegmentDistance(wallA, start, end),
+    pointToSegmentDistance(wallB, start, end),
+    pointToSegmentDistance(start, wallA, wallB),
+    pointToSegmentDistance(end, wallA, wallB)
+  );
+  if (chordDistToWall > endpointSlack) return null;
+
+  const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  return nearestPointOnSegment(mid, wallA, wallB);
+}
+
 /**
  * Mobile drawing contact test. A true barrier crossing always blocks, while
  * near-wall contact uses a small fixed pixel radius so portrait aspect ratios
