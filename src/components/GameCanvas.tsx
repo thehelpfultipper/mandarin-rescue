@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RotateCcw, ArrowRight, Zap, CheckCircle2, AlertTriangle, HelpCircle, Volume2, ArrowLeft, Settings } from 'lucide-react';
 import { Level, PlayerProgress } from '../types';
 import { getVocabularyStage } from '../lib/persistence';
-import { freshBoardSeed, instantiateLevel } from '../lib/boardVariants';
+import { freshBoardSeed, instantiateLevel, type InstantiatedLevel } from '../lib/boardVariants';
 import { patrolPositionAt } from '../lib/mazeKit';
 import { orderedContactsAlongPath, nearestPointOnPolyline, pathTouchesPoint, pathTouchesPolyline, pointToPathSegmentDistance } from '../lib/pathGeometry';
-import { getScreenSpaceBarrierContact, placeMazeLabels } from '../lib/mazeInteractionGeometry';
+import { getScreenSpaceBarrierContact } from '../lib/mazeInteractionGeometry';
 
 /** Fixed screen-space radii keep portrait corridors equally forgiving in both directions. */
 const WALL_CONTACT_RADIUS_PX = 4;
@@ -19,8 +19,8 @@ const PLAY_INSET = 0.06;
 interface GameCanvasProps {
   /** Curated template — geometry is re-instantiated per attempt so memory ≠ solution. */
   level: Level;
-  onSuccess: (attempts: Record<string, { success: number; failure: number }>) => void;
-  onFailure?: (errorType: 'language' | 'drawing', failedChars: string[]) => void;
+  onSuccess: (attempts: Record<string, { success: number; failure: number }>, playedLevel: Level) => void;
+  onFailure?: (errorType: 'language' | 'drawing', failedChars: string[], playedLevel: Level) => void;
   onBackToDashboard: () => void;
   onOpenSettings?: () => void;
   onNextLevel?: () => void;
@@ -238,7 +238,7 @@ export function GameCanvas({
   const [dimensions, setDimensions] = useState({ width: 320, height: 400 });
 
   // Playable board instance (reshuffled each enter / retry — never memorize one path)
-  const [level, setLevel] = useState<Level>(() => instantiateLevel(levelTemplate));
+  const [level, setLevel] = useState<InstantiatedLevel>(() => instantiateLevel(levelTemplate));
   const [playKey, setPlayKey] = useState(0);
   const levelTemplateIdRef = useRef(levelTemplate.id);
   // Game/Drawing States
@@ -258,6 +258,7 @@ export function GameCanvas({
   const [hazardAlert, setHazardAlert] = useState<string | null>(null);
   const [reachGoalNotice, setReachGoalNotice] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [visibleLabelIds, setVisibleLabelIds] = useState<string[]>([]);
 
   // Dynamic Item/Primitive States
   const [collectedKeys, setCollectedKeys] = useState<string[]>([]);
@@ -281,7 +282,10 @@ export function GameCanvas({
 
   const showPinyin = pinyinEnabled || !!level.forceAssists;
   const showTranslation = translationEnabled || !!level.forceAssists;
-  const framingLine = missionFraming || level.missionFraming || adaptationRationale || null;
+  const usedSafeBoardFallback = Boolean(level.usedSafeBoardFallback);
+  const framingLine = usedSafeBoardFallback
+    ? level.missionFraming || null
+    : missionFraming || level.missionFraming || adaptationRationale || null;
   const revisitChars = reviewChars
     .filter(
       (c) =>
@@ -368,6 +372,7 @@ export function GameCanvas({
     setWallShockwave(null);
     setHazardAlert(null);
     setReachGoalNotice(false);
+    setVisibleLabelIds([]);
   };
 
   /** New geometry for this linguistic room — same challenge class, different solution path. */
@@ -878,7 +883,7 @@ export function GameCanvas({
       navigator.vibrate(200);
     }
 
-    onFailure?.(errorType, failedChars);
+    onFailure?.(errorType, failedChars, level);
 
     setTimeout(() => {
       setRhythmState('settle');
@@ -907,7 +912,7 @@ export function GameCanvas({
       setFailureMarker({ x: endPt.x, y: endPt.y, type: 'limit' });
       setFeedbackMsg('Path stopped short of 家 — draw all the way to the home gate.');
       setFeedbackKind('drawing');
-      onFailure?.('drawing', []);
+      onFailure?.('drawing', [], level);
       setTimeout(() => {
         setRhythmState('settle');
       }, 600);
@@ -935,7 +940,7 @@ export function GameCanvas({
         setFailureMarker({ x: goalNode.x, y: goalNode.y, type: 'missed_checkpoint' });
         setFeedbackMsg(`Missed 「${node?.chineseChar || '…'}」 — the clue needs that stop before home.`);
         setFeedbackKind('language');
-        onFailure?.('language', node ? [node.chineseChar] : []);
+        onFailure?.('language', node ? [node.chineseChar] : [], level);
         setTimeout(() => {
           setRhythmState('settle');
         }, 600);
@@ -953,7 +958,7 @@ export function GameCanvas({
         setFailureMarker({ x: goalNode.x, y: goalNode.y, type: 'wrong_order' });
         setFeedbackMsg(`Wrong order — hit 「${expected?.chineseChar || '…'}」 earlier, like the clue says.`);
         setFeedbackKind('language');
-        onFailure?.('language', expected ? [expected.chineseChar] : []);
+        onFailure?.('language', expected ? [expected.chineseChar] : [], level);
         setTimeout(() => {
           setRhythmState('settle');
         }, 600);
@@ -972,7 +977,7 @@ export function GameCanvas({
       setFailureMarker({ x: touchedForbidden.x, y: touchedForbidden.y, type: 'wrong_target' });
       setFeedbackMsg(`「${touchedForbidden.chineseChar}」 isn’t in the clue — that choice fails the rescue.`);
       setFeedbackKind('language');
-      onFailure?.('language', [touchedForbidden.chineseChar]);
+      onFailure?.('language', [touchedForbidden.chineseChar], level);
       setTimeout(() => {
         setRhythmState('settle');
       }, 600);
@@ -1006,7 +1011,7 @@ export function GameCanvas({
     const actor = level.nodes.find(n => n.type === 'actor');
     if (actor) attempts[actor.chineseChar] = { success: 1, failure: 0 };
 
-    onSuccess(attempts);
+    onSuccess(attempts, level);
 
     setTimeout(() => {
       setRhythmState('settlement');
@@ -1025,8 +1030,17 @@ export function GameCanvas({
   const toPxX = (pct: number) => (PLAY_INSET + (pct / 100) * (1 - 2 * PLAY_INSET)) * dimensions.width;
   const toPxY = (pct: number) => (PLAY_INSET + (pct / 100) * (1 - 2 * PLAY_INSET)) * dimensions.height;
   const toCssPct = (pct: number) => PLAY_INSET * 100 + pct * (1 - 2 * PLAY_INSET);
+  const clampBoardX = (x: number, halfWidth: number) => {
+    const minX = PLAY_INSET * dimensions.width + halfWidth + 2;
+    const maxX = (1 - PLAY_INSET) * dimensions.width - halfWidth - 2;
+    return Math.min(maxX, Math.max(minX, x));
+  };
+  const labelBelowY = (cy: number, offset = 30) => {
+    const maxY = (1 - PLAY_INSET) * dimensions.height - 10;
+    return cy + offset > maxY ? cy - 36 : cy + offset;
+  };
 
-  const nodeSubtitles = level.nodes.flatMap(node => {
+  const nodeSubtitle = (node: Level['nodes'][number]): string | null => {
     const scaffoldItem = level.vocabularyScaffold?.find(s => s.char === node.chineseChar);
     let label = node.label;
     if (scaffoldItem) {
@@ -1036,48 +1050,22 @@ export function GameCanvas({
       } else if (dynamicStage === 'familiar') {
         label = scaffoldItem.pinyin;
       } else {
-        return [];
+        return null;
       }
     }
-    const shortLabel =
-      label.length > 18 ? label.replace(/\s*\/\s*.+$/, '').trim() : label;
-    return [{
-      id: node.id,
-      label: shortLabel,
-      anchorX: toPxX(node.x),
-      anchorY: toPxY(node.y),
-      halfWidth: Math.min(48, Math.max(28, shortLabel.length * 3.2)),
-    }];
-  });
-  const labelBarriers = [
-    ...(level.walls || []),
-    ...(level.lockedDoors || []),
-    ...(level.oneWayGates || []),
-  ].map(barrier => ({
-    x1: toPxX(barrier.x1),
-    y1: toPxY(barrier.y1),
-    x2: toPxX(barrier.x2),
-    y2: toPxY(barrier.y2),
-  }));
-  const nodeAvoidRects = level.nodes.map(node => {
-    const x = toPxX(node.x);
-    const y = toPxY(node.y);
-    return {
-      left: x - 24,
-      right: x + 24,
-      top: y - 24,
-      bottom: y + 24,
-    };
-  });
-  const labelPlacements = placeMazeLabels(
-    nodeSubtitles,
-    labelBarriers,
-    dimensions.width,
-    dimensions.height,
-    { x: PLAY_INSET * dimensions.width, y: PLAY_INSET * dimensions.height },
-    nodeAvoidRects
-  );
-  const subtitleById = new Map(nodeSubtitles.map(item => [item.id, item.label]));
+    return label.length > 18 ? label.replace(/\s*\/\s*.+$/, '').trim() : label;
+  };
+
+  const toggleNodeLabel = (nodeId: string) => {
+    setVisibleLabelIds(current =>
+      current.includes(nodeId)
+        ? current.filter(id => id !== nodeId)
+        : [...current, nodeId]
+    );
+  };
+  const roomBadge = level.id.startsWith('adaptive_')
+    ? 'Practice'
+    : `Room ${level.id.replace('lvl_', '').replace(/^0+/, '') || level.id}`;
 
   return (
     <div
@@ -1097,8 +1085,8 @@ export function GameCanvas({
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <span className="bg-stone-800 px-2.5 py-1 rounded-full text-stone-300 font-mono text-[10px] shrink-0">
-            Room {level.id.replace('lvl_', '').replace(/^0+/, '') || level.id}
+          <span className="max-w-[112px] truncate bg-stone-800 px-2.5 py-1 rounded-full text-stone-300 font-mono text-[10px] shrink">
+            {roomBadge}
           </span>
 
           <div className="flex items-center shrink-0 gap-0.5">
@@ -1290,33 +1278,6 @@ export function GameCanvas({
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
           </defs>
-
-          {/* Floor-level vocabulary labels: walls paint above these so topology stays visible. */}
-          {labelPlacements.map(label => (
-            <g
-              key={`label_${label.id}`}
-              transform={`translate(${label.x}, ${label.y})`}
-              className="pointer-events-none select-none"
-            >
-              <rect
-                x={-label.halfWidth}
-                y="-7"
-                width={label.halfWidth * 2}
-                height="14"
-                rx="4"
-                fill="rgba(30, 27, 24, 0.78)"
-                stroke="rgba(120, 113, 108, 0.72)"
-                strokeWidth="0.8"
-              />
-              <text
-                textAnchor="middle"
-                y="3"
-                className="fill-stone-100 text-[9px] font-semibold tracking-wide"
-              >
-                {subtitleById.get(label.id)}
-              </text>
-            </g>
-          ))}
 
           {/* 1. SWITCH CONDUIT LINES: Connect switch node to the target wall it deactivates */}
           {level.switches?.map(sw => {
@@ -1636,6 +1597,8 @@ export function GameCanvas({
 
             const cx = toPxX(node.x);
             const cy = toPxY(node.y);
+            const subtitle = node.type === 'actor' ? null : nodeSubtitle(node);
+            const isLabelVisible = subtitle != null && visibleLabelIds.includes(node.id);
 
             // Custom Node Vector Art
             let nodeArtwork: React.ReactNode = null;
@@ -1830,6 +1793,67 @@ export function GameCanvas({
                     <circle r="7" fill="#059669" stroke="#34D399" strokeWidth="1" />
                     <text textAnchor="middle" y="2.5" className="fill-white text-[8px] font-bold">✓</text>
                   </g>
+                )}
+
+                {isLabelVisible && subtitle && (() => {
+                  const halfWidth = Math.min(48, Math.max(28, subtitle.length * 3.2));
+                  const labelX = clampBoardX(cx, halfWidth);
+                  const labelY = labelBelowY(cy, 30);
+                  return (
+                    <g
+                      transform={`translate(${labelX}, ${labelY})`}
+                      className="pointer-events-none"
+                      aria-live="polite"
+                    >
+                      <rect
+                        x={-halfWidth}
+                        y="-7"
+                        width={halfWidth * 2}
+                        height="14"
+                        rx="4"
+                        fill="#1E1B18"
+                        stroke="#3D352F"
+                        strokeWidth="0.8"
+                      />
+                      <text
+                        textAnchor="middle"
+                        y="3"
+                        className="fill-stone-300 text-[8px] font-semibold tracking-wide select-none"
+                      >
+                        {subtitle}
+                      </text>
+                    </g>
+                  );
+                })()}
+
+                {subtitle && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r="24"
+                    fill="transparent"
+                    stroke="transparent"
+                    strokeWidth="2"
+                    className="pointer-events-auto cursor-pointer focus:stroke-amber-300 focus:outline-none"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${isLabelVisible ? 'Hide' : 'Show'} label for ${node.chineseChar}`}
+                    aria-expanded={isLabelVisible}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleNodeLabel(node.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toggleNodeLabel(node.id);
+                      }
+                    }}
+                  />
                 )}
 
               </g>

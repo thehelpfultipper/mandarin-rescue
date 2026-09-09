@@ -3,12 +3,9 @@ import { DEFAULT_LEVELS, DEFAULT_PROGRESS } from '../src/lib/persistence';
 import { boardGeometryKey, instantiateLevel } from '../src/lib/boardVariants';
 import { GeneratedMazeLevel, getMazeProfile } from '../src/lib/mazeGenerator';
 import { orderedContactsAlongPath, pathTouchesPoint, pathTouchesPolyline } from '../src/lib/pathGeometry';
-import {
-  barrierIntersectsRect,
-  getScreenSpaceBarrierContact,
-  labelRect,
-  placeMazeLabels,
-} from '../src/lib/mazeInteractionGeometry';
+import { getScreenSpaceBarrierContact } from '../src/lib/mazeInteractionGeometry';
+import { adaptiveRuntimeId } from '../src/lib/adaptClient';
+import { isValidLevelResponse, parseModelJson } from '../supabase/functions/adapt/modelJson';
 
 let passed = 0;
 let failed = 0;
@@ -449,6 +446,47 @@ function verifyGeneratedGraphConnected(board: GeneratedMazeLevel): boolean {
   return visited.size === board.mazeMetadata.size ** 2;
 }
 
+function independentShortestRequiredSteps(board: GeneratedMazeLevel): number {
+  const graph = new Map<string, string[]>();
+  for (const edge of board.mazeMetadata.connections) {
+    const [a, b] = edge.split('|');
+    graph.set(a, [...(graph.get(a) || []), b]);
+    graph.set(b, [...(graph.get(b) || []), a]);
+  }
+  const step = 88 / board.mazeMetadata.size;
+  const nodeCell = (nodeId: string): string => {
+    const node = board.nodes.find(candidate => candidate.id === nodeId);
+    if (!node) throw new Error(`Missing node "${nodeId}" in independent route check`);
+    const row = Math.max(0, Math.min(board.mazeMetadata.size - 1, Math.floor((node.y - 6) / step)));
+    const col = Math.max(0, Math.min(board.mazeMetadata.size - 1, Math.floor((node.x - 6) / step)));
+    return `${row},${col}`;
+  };
+  const blocked = new Set(board.forbiddenNodeIds.map(nodeCell));
+  let total = 0;
+  for (let stage = 1; stage < board.requiredNodeIds.length; stage++) {
+    const start = nodeCell(board.requiredNodeIds[stage - 1]);
+    const goal = nodeCell(board.requiredNodeIds[stage]);
+    const queue: Array<{ cell: string; steps: number }> = [{ cell: start, steps: 0 }];
+    const visited = new Set([start]);
+    let found = -1;
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const current = queue[cursor];
+      if (current.cell === goal) {
+        found = current.steps;
+        break;
+      }
+      for (const next of graph.get(current.cell) || []) {
+        if (visited.has(next) || (blocked.has(next) && next !== goal)) continue;
+        visited.add(next);
+        queue.push({ cell: next, steps: current.steps + 1 });
+      }
+    }
+    if (found < 0) throw new Error(`Independent route check found no path for stage ${stage}`);
+    total += found;
+  }
+  return total;
+}
+
 function verifyDistractorPressure(board: GeneratedMazeLevel): { ok: boolean; reason?: string } {
   const expected = board.nodes.filter(node => !board.requiredNodeIds.includes(node.id));
   const placements = board.mazeMetadata.distractors;
@@ -622,6 +660,97 @@ runTest('Validate Punctuation Acceptance in Mandarin Clues', () => {
   }
 });
 
+runTest('Validate Gemini JSON Recovery Ignores Trailing Model Text', () => {
+  const parsed = parseModelJson('```json\\n{"suggestedLevel":{"id":"safe"},"note":"brace } in string"}\\n``` trailing') as {
+    suggestedLevel?: { id?: string };
+  };
+  if (parsed.suggestedLevel?.id !== 'safe') {
+    throw new Error('Failed to recover the complete JSON object from trailing model output');
+  }
+});
+
+runTest('Validate Repeated Adaptive Source IDs Receive Unique Runtime IDs', () => {
+  const first = adaptiveRuntimeId('lvl_fallback_1', 1_800_000_000_000, 1);
+  const second = adaptiveRuntimeId('lvl_fallback_1', 1_800_000_000_000, 2);
+  if (first === second || !first.startsWith('adaptive_lvl_fallback_1_')) {
+    throw new Error('Repeated adaptive source IDs can still retain the previous board instance');
+  }
+});
+
+runTest('Validate Adaptive Levels Enforce Semantic Contracts', () => {
+  const valid = structuredClone(DEFAULT_LEVELS[0]);
+  const sequential = structuredClone(DEFAULT_LEVELS.find(level => level.id === 'lvl_3')!);
+  const sequentialActor = sequential.nodes.find(node => node.type === 'actor')!;
+  const sequentialGoal = sequential.nodes.find(node => node.type === 'goal')!;
+  if (!LevelSchema.safeParse(valid).success || !isValidLevelResponse({ suggestedLevel: valid })) {
+    throw new Error('A valid curated level was rejected by an adaptive contract');
+  }
+
+  const invalidLevels = [
+    { ...structuredClone(valid), requiredNodeIds: [...valid.requiredNodeIds].reverse() },
+    { ...structuredClone(valid), forbiddenNodeIds: [] },
+    {
+      ...structuredClone(valid),
+      nodes: valid.nodes.map((node, index) => index === 1 ? { ...node, id: valid.nodes[0].id } : node),
+    },
+    {
+      ...structuredClone(valid),
+      nodes: valid.nodes.map((node, index) => index === 1 ? { ...node, x: 101 } : node),
+    },
+    {
+      ...sequential,
+      requiredNodeIds: [sequentialActor.id, sequentialGoal.id],
+    },
+    {
+      ...sequential,
+      nodes: sequential.nodes.filter(node => node.chineseChar !== '水'),
+      requiredNodeIds: [sequentialActor.id, sequentialGoal.id],
+    },
+    {
+      ...sequential,
+      nodes: sequential.nodes.map(node => node.chineseChar === '水' ? { ...node, type: 'item' as const } : node),
+      requiredNodeIds: [sequentialActor.id, sequentialGoal.id],
+    },
+    {
+      ...sequential,
+      mandarinClue: '避开火,先喝水再回家',
+      nodes: sequential.nodes.map(node => node.chineseChar === '水' ? { ...node, type: 'item' as const } : node),
+      requiredNodeIds: [sequentialActor.id, sequentialGoal.id],
+      forbiddenNodeIds: [
+        ...sequential.forbiddenNodeIds,
+        sequential.nodes.find(node => node.chineseChar === '水')!.id,
+      ],
+    },
+  ];
+  for (const invalid of invalidLevels) {
+    if (LevelSchema.safeParse(invalid).success || isValidLevelResponse({ suggestedLevel: invalid })) {
+      throw new Error('A semantically invalid adaptive level passed validation');
+    }
+  }
+});
+
+runTest('Validate Adaptive Generation Failure Never Exposes Raw Geometry', () => {
+  const unsafeLevels = [
+    { ...structuredClone(DEFAULT_LEVELS[0]), id: 'adaptive_invalid_geometry', routeLengthLimit: 1 },
+    { ...structuredClone(DEFAULT_LEVELS[0]), id: 'lvl_999', routeLengthLimit: 1 },
+    { ...structuredClone(DEFAULT_LEVELS[0]), id: 'lvl_1', routeLengthLimit: 1 },
+    { ...structuredClone(DEFAULT_LEVELS[0]), id: 'adaptive_missing_nodes', nodes: [] },
+  ];
+  for (const unsafe of unsafeLevels) {
+    const safe = instantiateLevel(unsafe, 17) as GeneratedMazeLevel & {
+      usedSafeBoardFallback?: boolean;
+    };
+    if (
+      !safe.mazeMetadata ||
+      safe.routeLengthLimit === 1 ||
+      safe.nodes.length === 0 ||
+      !safe.usedSafeBoardFallback
+    ) {
+      throw new Error(`Level "${unsafe.id}" leaked unvalidated supplied geometry`);
+    }
+  }
+});
+
 // Test 5: Validate Non-Trivial Geometry Check (Reject straight-line bypasses)
 runTest('Validate Non-Trivial Geometry Enforcement', () => {
   const trivialLevel = {
@@ -699,62 +828,6 @@ runTest('Validate Mobile Wall Contact Forgiveness in Screen Space', () => {
     0
   );
   if (!crossing) throw new Error('A true wall-centerline crossing must always block');
-});
-
-runTest('Validate Maze Labels Prefer Wall-Clear Floor Space', () => {
-  const wall = { x1: 45, y1: 128, x2: 155, y2: 128 };
-  const nodeObstacle = { left: 70, right: 130, top: 55, bottom: 90 };
-  const [placement] = placeMazeLabels(
-    [{ id: 'fire', anchorX: 100, anchorY: 100, halfWidth: 30 }],
-    [wall],
-    200,
-    200,
-    { x: 12, y: 12 },
-    [nodeObstacle]
-  );
-  if (!placement) {
-    throw new Error('Label placement was not produced');
-  }
-  if (barrierIntersectsRect(wall, labelRect(placement), 5.5)) {
-    throw new Error('Chosen label still intersects the avoidable wall');
-  }
-  const rect = labelRect(placement);
-  const overlapsNode =
-    rect.left < nodeObstacle.right &&
-    rect.right > nodeObstacle.left &&
-    rect.top < nodeObstacle.bottom &&
-    rect.bottom > nodeObstacle.top;
-  if (overlapsNode) {
-    throw new Error('Chosen label overlaps avoidable node artwork');
-  }
-
-  const crowdedPlacements = placeMazeLabels(
-    [
-      { id: 'fire', anchorX: 80, anchorY: 100, halfWidth: 30 },
-      { id: 'meat', anchorX: 120, anchorY: 100, halfWidth: 30 },
-    ],
-    [],
-    220,
-    200,
-    { x: 12, y: 12 },
-    [
-      { left: 56, right: 104, top: 76, bottom: 124 },
-      { left: 96, right: 144, top: 76, bottom: 124 },
-    ]
-  );
-  if (crowdedPlacements.length !== 2) {
-    throw new Error('Crowded but placeable labels were unnecessarily omitted');
-  }
-  const firstRect = labelRect(crowdedPlacements[0]);
-  const secondRect = labelRect(crowdedPlacements[1]);
-  const labelsOverlap =
-    firstRect.left < secondRect.right &&
-    firstRect.right > secondRect.left &&
-    firstRect.top < secondRect.bottom &&
-    firstRect.bottom > secondRect.top;
-  if (labelsOverlap) {
-    throw new Error('Maze labels overlap one another');
-  }
 });
 
 runTest('Validate Sparse Segment Triggers Activate Before Their Barrier', () => {
@@ -845,6 +918,31 @@ runTest('Validate Generated Maze Topology, Difficulty, and Replay Variety', () =
       }
       if (metrics.directRatio < 1.6) {
         throw new Error(`${template.id} seed=${seed} route/direct ratio ${metrics.directRatio.toFixed(2)} is too obvious`);
+      }
+      if (template.id === 'lvl_1' || template.id === 'lvl_2') {
+        const independentlyMeasured = independentShortestRequiredSteps(board);
+        if (independentlyMeasured !== metrics.shortestRouteSteps) {
+          throw new Error(
+            `${template.id} seed=${seed} shortest-route metric ${metrics.shortestRouteSteps} ` +
+            `does not match independent BFS ${independentlyMeasured}`
+          );
+        }
+      }
+      if (
+        profile.minShortestRouteSteps != null &&
+        metrics.shortestRouteSteps < profile.minShortestRouteSteps
+      ) {
+        throw new Error(
+          `${template.id} seed=${seed} shortest playable route is only ${metrics.shortestRouteSteps} cells`
+        );
+      }
+      if (
+        profile.maxShortestRouteSteps != null &&
+        metrics.shortestRouteSteps > profile.maxShortestRouteSteps
+      ) {
+        throw new Error(
+          `${template.id} seed=${seed} onboarding route is too long at ${metrics.shortestRouteSteps} cells`
+        );
       }
       if (metrics.bfsExpanded < Math.min(metrics.routeSteps, profile.size) * 0.4) {
         throw new Error(`${template.id} seed=${seed} solver explored too little of the board`);

@@ -14,6 +14,7 @@
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { isValidLevelResponse, parseModelJson } from "./modelJson.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -192,18 +193,6 @@ function pickFallback(completedLevelCount = 0) {
   return FALLBACK_LEVELS[completedLevelCount % FALLBACK_LEVELS.length];
 }
 
-function looksLikeLevel(data: unknown): boolean {
-  if (!data || typeof data !== "object") return false;
-  const d = data as Record<string, unknown>;
-  const level = d.suggestedLevel as Record<string, unknown> | undefined;
-  if (!level || !Array.isArray(level.nodes) || level.nodes.length < 2) return false;
-  if (!Array.isArray(level.requiredNodeIds) || level.requiredNodeIds.length < 2) return false;
-  if (typeof level.mandarinClue !== "string" || !level.mandarinClue) return false;
-  const hasActor = (level.nodes as { type?: string }[]).some((n) => n.type === "actor");
-  const hasGoal = (level.nodes as { type?: string }[]).some((n) => n.type === "goal");
-  return hasActor && hasGoal;
-}
-
 function buildFocus(body: AdaptBody): string {
   const struggled = body.recentlyStruggledChars || [];
   const mastered = body.recentlyMasteredChars || [];
@@ -245,6 +234,7 @@ Rules for suggestedLevel:
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(20_000),
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
@@ -260,7 +250,7 @@ Rules for suggestedLevel:
       const payload = await res.json();
       const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text || typeof text !== "string") continue;
-      const parsed = JSON.parse(text);
+      const parsed = parseModelJson(text) as Record<string, any>;
       if (body.silentPlay && parsed?.suggestedLevel) {
         parsed.suggestedLevel.isAudioRequired = false;
       }
@@ -272,7 +262,7 @@ Rules for suggestedLevel:
         parsed.suggestedLevel.missionFraming =
           parsed.levelPlan?.whyMandarinMatters || "Another rescue — practice what you know.";
       }
-      if (looksLikeLevel(parsed)) return parsed;
+      if (isValidLevelResponse(parsed)) return parsed;
     } catch (err) {
       console.warn(`Gemini ${model} failed:`, err);
     }

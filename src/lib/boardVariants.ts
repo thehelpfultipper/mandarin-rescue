@@ -1,9 +1,15 @@
 import { Level } from '../types';
 import { generateMazeLevel, hasMazeProfile } from './mazeGenerator';
+import { DEFAULT_LEVELS } from './curatedLevels';
+
+export type InstantiatedLevel = Level & {
+  /** Internal runtime marker; never accepted from model JSON. */
+  usedSafeBoardFallback?: boolean;
+};
 
 /**
  * Every curated room is instantiated as a fresh, solver-scored maze.
- * Adaptive / fallback rooms try mid-arc courtyard craft, then keep supplied geometry.
+ * Adaptive rooms try mid-arc courtyard craft and fail closed to validated curated geometry.
  */
 export function freshBoardSeed(): number {
   if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
@@ -17,7 +23,6 @@ export function freshBoardSeed(): number {
 /** Map non-curated boards onto an existing profile without changing linguistic content. */
 function adaptiveProfileProxyId(template: Level): string | null {
   if (hasMazeProfile(template.id)) return template.id;
-  if (/^lvl_\d+$/.test(template.id)) return null;
   const hasActor = template.nodes.some((n) => n.type === 'actor');
   const hasGoal = template.nodes.some((n) => n.type === 'goal');
   if (!hasActor || !hasGoal) return null;
@@ -31,9 +36,47 @@ function adaptiveProfileProxyId(template: Level): string | null {
   return 'lvl_7';
 }
 
-export function instantiateLevel(template: Level, seed: number = freshBoardSeed()): Level {
+function validatedFallback(
+  runtimeId: string,
+  preferredProfileId: string,
+  seed: number,
+  allowAlternateProfiles: boolean
+): InstantiatedLevel {
+  const preferred = DEFAULT_LEVELS.find(level => level.id === preferredProfileId);
+  const candidates = preferred && allowAlternateProfiles
+    ? [preferred, ...DEFAULT_LEVELS.filter(level => level.id !== preferred.id)]
+    : preferred
+      ? [preferred]
+      : DEFAULT_LEVELS;
+
+  for (let round = 0; round < 4; round++) {
+    for (let index = 0; index < candidates.length; index++) {
+      try {
+        const fallbackSeed = (
+          seed ^
+          0x9e3779b9 ^
+          Math.imul(index + 1, 0x85ebca6b) ^
+          Math.imul(round + 1, 0xc2b2ae35)
+        ) >>> 0;
+        return {
+          ...generateMazeLevel(candidates[index], fallbackSeed),
+          id: runtimeId,
+          usedSafeBoardFallback: true,
+        };
+      } catch {
+        // Try another seed, then another validated profile when adaptive semantics are already unavailable.
+      }
+    }
+  }
+  throw new Error(`Unable to construct any validated fallback board for "${runtimeId}"`);
+}
+
+export function instantiateLevel(template: Level, seed: number = freshBoardSeed()): InstantiatedLevel {
   const profileId = adaptiveProfileProxyId(template);
-  if (!profileId) return structuredClone(template);
+  if (!profileId) {
+    console.warn(`Level "${template.id}" has no playable actor/goal contract; using curated geometry.`);
+    return validatedFallback(template.id, 'lvl_1', seed, true);
+  }
 
   try {
     const forGen =
@@ -54,8 +97,13 @@ export function instantiateLevel(template: Level, seed: number = freshBoardSeed(
       vocabularyScaffold: template.vocabularyScaffold,
       isAudioRequired: template.isAudioRequired
     };
-  } catch {
-    return structuredClone(template);
+  } catch (error) {
+    const safeTemplate = DEFAULT_LEVELS.find(level => level.id === profileId) || DEFAULT_LEVELS[0];
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `Maze generation failed for "${template.id}"; using validated ${safeTemplate.id} geometry: ${reason}`
+    );
+    return validatedFallback(template.id, safeTemplate.id, seed, profileId !== template.id);
   }
 }
 

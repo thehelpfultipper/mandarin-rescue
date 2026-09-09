@@ -9,6 +9,8 @@ type MazeProfile = {
   braidChance: number;
   attempts: number;
   minRouteSteps: number;
+  minShortestRouteSteps?: number;
+  maxShortestRouteSteps?: number;
   minTurns: number;
   minDecisions: number;
   minDecoyDepth: number;
@@ -17,6 +19,7 @@ type MazeProfile = {
 
 export type MazeMetrics = {
   routeSteps: number;
+  shortestRouteSteps: number;
   routeLength: number;
   directRatio: number;
   turns: number;
@@ -74,8 +77,8 @@ const BOARD_MIN = 6;
 const BOARD_MAX = 94;
 
 const PROFILES: Record<string, MazeProfile> = {
-  lvl_1: { size: 7, newestBias: 0.68, braidChance: 0, attempts: 80, minRouteSteps: 18, minTurns: 7, minDecisions: 3, minDecoyDepth: 2, maxStraightRun: 5 },
-  lvl_2: { size: 7, newestBias: 0.58, braidChance: 0, attempts: 80, minRouteSteps: 19, minTurns: 8, minDecisions: 3, minDecoyDepth: 2, maxStraightRun: 5 },
+  lvl_1: { size: 7, newestBias: 0.68, braidChance: 0, attempts: 80, minRouteSteps: 18, minShortestRouteSteps: 10, maxShortestRouteSteps: 17, minTurns: 7, minDecisions: 3, minDecoyDepth: 2, maxStraightRun: 5 },
+  lvl_2: { size: 7, newestBias: 0.58, braidChance: 0, attempts: 80, minRouteSteps: 19, minShortestRouteSteps: 18, minTurns: 8, minDecisions: 3, minDecoyDepth: 2, maxStraightRun: 5 },
   lvl_3: { size: 8, newestBias: 0.62, braidChance: 0.04, attempts: 90, minRouteSteps: 23, minTurns: 9, minDecisions: 4, minDecoyDepth: 2, maxStraightRun: 5 },
   lvl_4: { size: 8, newestBias: 0.54, braidChance: 0.05, attempts: 90, minRouteSteps: 24, minTurns: 10, minDecisions: 4, minDecoyDepth: 3, maxStraightRun: 5 },
   lvl_5: { size: 8, newestBias: 0.48, braidChance: 0.06, attempts: 100, minRouteSteps: 25, minTurns: 10, minDecisions: 4, minDecoyDepth: 3, maxStraightRun: 4 },
@@ -209,6 +212,27 @@ function pathBetween(graph: Map<string, Cell[]>, start: Cell, goal: Cell): Cell[
     path.push(parseKey(cursor));
   }
   return path.reverse();
+}
+
+function shortestAllowedSteps(
+  graph: Map<string, Cell[]>,
+  start: Cell,
+  goal: Cell,
+  blocked: Set<string>
+): number {
+  const queue: Array<{ cell: Cell; steps: number }> = [{ cell: start, steps: 0 }];
+  const seen = new Set([key(start)]);
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const current = queue[cursor];
+    if (key(current.cell) === key(goal)) return current.steps;
+    for (const next of graph.get(key(current.cell)) || []) {
+      const token = key(next);
+      if (seen.has(token) || (blocked.has(token) && token !== key(goal))) continue;
+      seen.add(token);
+      queue.push({ cell: next, steps: current.steps + 1 });
+    }
+  }
+  return Number.POSITIVE_INFINITY;
 }
 
 function diameter(graph: Map<string, Cell[]>): Cell[] {
@@ -1396,6 +1420,23 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
     if (!cell) return node;
     return { ...node, ...cellPoint(cell, profile.size) };
   });
+  const forbiddenCells = new Set(
+    template.forbiddenNodeIds
+      .map(id => placements.get(id))
+      .filter((cell): cell is Cell => Boolean(cell))
+      .map(key)
+  );
+  let shortestRouteSteps = 0;
+  for (let index = 1; index < requiredCells.length; index++) {
+    const stageSteps = shortestAllowedSteps(
+      graph,
+      requiredCells[index - 1],
+      requiredCells[index],
+      forbiddenCells
+    );
+    if (!Number.isFinite(stageSteps)) return null;
+    shortestRouteSteps += stageSteps;
+  }
   const routeShape = routeTurns(intendedRoute);
   const startPoint = cellPoint(intendedRoute[0], profile.size);
   const goalPoint = cellPoint(intendedRoute[intendedRoute.length - 1], profile.size);
@@ -1411,6 +1452,8 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
     info.deepestDecoy >= profile.minDecoyDepth &&
     routeShape.longestStraightRun <= profile.maxStraightRun &&
     routeLength / direct >= 1.6 &&
+    shortestRouteSteps >= (profile.minShortestRouteSteps || 0) &&
+    shortestRouteSteps <= (profile.maxShortestRouteSteps || Number.POSITIVE_INFINITY) &&
     routeLength <= (template.routeLengthLimit || Number.POSITIVE_INFINITY);
   if (!topologyPass) return null;
 
@@ -1432,6 +1475,7 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
   const clearCount = patrols.filter(p => patrolClearOfSolution(p, intendedRoute, profile.size)).length;
   const metrics: MazeMetrics = {
     routeSteps: intendedRoute.length - 1,
+    shortestRouteSteps,
     routeLength,
     directRatio: routeLength / direct,
     turns: routeShape.turns,

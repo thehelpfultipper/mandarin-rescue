@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Compass, 
   Settings, 
@@ -21,12 +21,12 @@ import {
   loadDrawCoachDismissed,
   saveDrawCoachDismissed
 } from './lib/persistence';
-import { Level, PlayerProgress } from './types';
+import { LevelSchema, type Level, type PlayerProgress } from './types';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { GameCanvas } from './components/GameCanvas';
-import { adaptEndpoint } from './lib/adaptClient';
+import { adaptEndpoint, adaptiveRuntimeId } from './lib/adaptClient';
 
 const GRAMMAR_DICT: Record<string, { pinyin: string; english: string; emoji?: string }> = {
   '小': { pinyin: 'xiǎo', english: 'small / little' },
@@ -144,6 +144,10 @@ function InteractiveClue({ clue, scaffold }: InteractiveClueProps) {
 }
 
 export default function App() {
+  const adaptiveSequenceRef = useRef(0);
+  const preloadInFlightRef = useRef(false);
+  const queuedPreloadProgressRef = useRef<PlayerProgress | null>(null);
+  const latestPreloadRequestRef = useRef(0);
   const isOnline = useOnlineStatus();
   
   // App states
@@ -178,9 +182,22 @@ export default function App() {
     setCurrentView('puzzle');
   };
 
+  const asAdaptiveInstance = (level: Level): Level => {
+    adaptiveSequenceRef.current += 1;
+    return {
+      ...level,
+      id: adaptiveRuntimeId(level.id, Date.now(), adaptiveSequenceRef.current),
+    };
+  };
+
   // Preload next adaptive level silently in the background
   const preloadNextAdaptiveLevel = async (currentProgress: PlayerProgress) => {
-    if (isPreloading) return;
+    const requestVersion = ++latestPreloadRequestRef.current;
+    if (preloadInFlightRef.current) {
+      queuedPreloadProgressRef.current = currentProgress;
+      return;
+    }
+    preloadInFlightRef.current = true;
     setIsPreloading(true);
     setErrorMsg(null);
 
@@ -209,32 +226,54 @@ export default function App() {
       });
 
       const data = await res.json();
+      if (requestVersion !== latestPreloadRequestRef.current) return;
       if (res.ok && data.suggestedLevel) {
-        if (data.suggestedLevel.isAudioRequired && !currentProgress.settings.soundEnabled) {
+        const parsedLevel = LevelSchema.safeParse(data.suggestedLevel);
+        if (!parsedLevel.success) {
+          throw new Error('Adapt endpoint returned an invalid level');
+        }
+        const suggestedLevel = asAdaptiveInstance(parsedLevel.data);
+        if (suggestedLevel.isAudioRequired && !currentProgress.settings.soundEnabled) {
           throw new Error('AI generated an audio level during silent play');
         }
-        setPreloadedLevel(data.suggestedLevel);
-        setPreloadedRationale(data.rationale || null);
+        setPreloadedLevel(suggestedLevel);
+        setPreloadedRationale(typeof data.rationale === 'string' ? data.rationale : null);
+        const whyMandarinMatters =
+          typeof data.levelPlan?.whyMandarinMatters === 'string'
+            ? data.levelPlan.whyMandarinMatters
+            : null;
+        const learningGoal =
+          typeof data.levelPlan?.learningGoal === 'string'
+            ? data.levelPlan.learningGoal
+            : null;
         const framing =
-          data.levelPlan?.whyMandarinMatters ||
-          data.levelPlan?.learningGoal ||
-          data.suggestedLevel.missionFraming ||
+          whyMandarinMatters ||
+          learningGoal ||
+          suggestedLevel.missionFraming ||
           null;
         setPreloadedFraming(framing);
       } else {
         throw new Error(data.error || 'Invalid API response');
       }
     } catch (err: any) {
+      if (requestVersion !== latestPreloadRequestRef.current) return;
       console.warn('Silent preloading failed or bypassed. Backing up to next uncompleted curated level:', err);
       const isSound = currentProgress.settings.soundEnabled;
       const fallbackLevel = DEFAULT_LEVELS.find(l => (!l.isAudioRequired || isSound) && !currentProgress.completedLevelIds.includes(l.id))
         || DEFAULT_LEVELS.find(l => !l.isAudioRequired || isSound)
         || DEFAULT_LEVELS[0];
-      setPreloadedLevel(fallbackLevel);
+      setPreloadedLevel(asAdaptiveInstance(fallbackLevel));
       setPreloadedRationale(null);
       setPreloadedFraming(fallbackLevel.missionFraming || 'Practice another rescue with the words you have been learning.');
     } finally {
-      setIsPreloading(false);
+      preloadInFlightRef.current = false;
+      const queuedProgress = queuedPreloadProgressRef.current;
+      queuedPreloadProgressRef.current = null;
+      if (queuedProgress) {
+        void preloadNextAdaptiveLevel(queuedProgress);
+      } else {
+        setIsPreloading(false);
+      }
     }
   };
 
@@ -312,18 +351,22 @@ export default function App() {
       const fallbackLevel = DEFAULT_LEVELS.find(l => (!l.isAudioRequired || isSound) && !progress.completedLevelIds.includes(l.id))
         || DEFAULT_LEVELS.find(l => !l.isAudioRequired || isSound)
         || DEFAULT_LEVELS[0];
-      
-      setSelectedLevel(fallbackLevel);
+      const fallbackInstance = asAdaptiveInstance(fallbackLevel);
+      setSelectedLevel(fallbackInstance);
       setAdaptationRationale(null);
-      setMissionFraming(fallbackLevel.missionFraming || 'Another rescue — practice what you know.');
+      setMissionFraming(fallbackInstance.missionFraming || 'Another rescue — practice what you know.');
       setCurrentView('puzzle');
       preloadNextAdaptiveLevel(progress);
     }
   };
 
   // Trigger real completion and update stats/history
-  const handleLevelCompletion = (attempts: Record<string, { success: number; failure: number }>) => {
+  const handleLevelCompletion = (
+    attempts: Record<string, { success: number; failure: number }>,
+    completedLevel?: Level
+  ) => {
     if (!selectedLevel) return;
+    const playedLevel = completedLevel || selectedLevel;
 
     // Record success
     const currentCompleted = [...progress.completedLevelIds];
@@ -381,14 +424,14 @@ export default function App() {
     });
 
     // 3. Phrase -> Action success tracking
-    const currentPhrase = adaptiveModel.phraseToAction[selectedLevel.mandarinClue] || { success: 0, failure: 0 };
-    adaptiveModel.phraseToAction[selectedLevel.mandarinClue] = {
+    const currentPhrase = adaptiveModel.phraseToAction[playedLevel.mandarinClue] || { success: 0, failure: 0 };
+    adaptiveModel.phraseToAction[playedLevel.mandarinClue] = {
       success: currentPhrase.success + 1,
       failure: currentPhrase.failure
     };
 
     // 4. Spatial-language comprehension success tracking ('左', '右', '上', '下')
-    const hasSpatial = ['左', '右', '上', '下'].some(char => selectedLevel.mandarinClue.includes(char));
+    const hasSpatial = ['左', '右', '上', '下'].some(char => playedLevel.mandarinClue.includes(char));
     if (hasSpatial) {
       adaptiveModel.spatialComprehension = {
         success: adaptiveModel.spatialComprehension.success + 1,
@@ -397,7 +440,7 @@ export default function App() {
     }
 
     // 5. Ordered-instruction comprehension success tracking ('先', '再', '后')
-    const hasOrdered = ['先', '再', '后'].some(char => selectedLevel.mandarinClue.includes(char));
+    const hasOrdered = ['先', '再', '后'].some(char => playedLevel.mandarinClue.includes(char));
     if (hasOrdered) {
       adaptiveModel.orderedComprehension = {
         success: adaptiveModel.orderedComprehension.success + 1,
@@ -406,7 +449,7 @@ export default function App() {
     }
 
     // 6. Delayed retention logs
-    selectedLevel.nodes.forEach(node => {
+    playedLevel.nodes.forEach(node => {
       if (node.type === 'checkpoint' || node.type === 'key') {
         const lastTestedTime = Date.now();
         const sessionIndex = currentCompleted.length;
@@ -459,8 +502,13 @@ export default function App() {
   };
 
   // Handle detailed failure events with separate error stats
-  const handleLevelFailure = (errorType: 'language' | 'drawing', failedChars: string[]) => {
+  const handleLevelFailure = (
+    errorType: 'language' | 'drawing',
+    failedChars: string[],
+    failedLevel?: Level
+  ) => {
     if (!selectedLevel) return;
+    const playedLevel = failedLevel || selectedLevel;
 
     const currentAttempts = { ...progress.vocabularyAttempts };
     
@@ -514,14 +562,14 @@ export default function App() {
       });
 
       // 3. Phrase -> Action failure
-      const currentPhrase = adaptiveModel.phraseToAction[selectedLevel.mandarinClue] || { success: 0, failure: 0 };
-      adaptiveModel.phraseToAction[selectedLevel.mandarinClue] = {
+      const currentPhrase = adaptiveModel.phraseToAction[playedLevel.mandarinClue] || { success: 0, failure: 0 };
+      adaptiveModel.phraseToAction[playedLevel.mandarinClue] = {
         success: currentPhrase.success,
         failure: currentPhrase.failure + 1
       };
 
       // 4. Spatial-language comprehension failure
-      const hasSpatial = ['左', '右', '上', '下'].some(char => selectedLevel.mandarinClue.includes(char));
+      const hasSpatial = ['左', '右', '上', '下'].some(char => playedLevel.mandarinClue.includes(char));
       if (hasSpatial) {
         adaptiveModel.spatialComprehension = {
           success: adaptiveModel.spatialComprehension.success,
@@ -530,7 +578,7 @@ export default function App() {
       }
 
       // 5. Ordered-instruction comprehension failure
-      const hasOrdered = ['先', '再', '后'].some(char => selectedLevel.mandarinClue.includes(char));
+      const hasOrdered = ['先', '再', '后'].some(char => playedLevel.mandarinClue.includes(char));
       if (hasOrdered) {
         adaptiveModel.orderedComprehension = {
           success: adaptiveModel.orderedComprehension.success,
