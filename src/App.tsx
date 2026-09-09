@@ -792,9 +792,15 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 2: PUZZLE STAGE (INTERACTIVE GAMEPLAY) */}
-        {currentView === 'puzzle' && selectedLevel && (
-          <div className="flex flex-col animate-in fade-in slide-in-from-bottom-3 duration-200 flex-1 min-h-0 w-full" id="view-puzzle">
+        {/* VIEW 2: PUZZLE STAGE — stay mounted while settings is open so board/draw state survive */}
+        {selectedLevel && (currentView === 'puzzle' || currentView === 'settings') && (
+          <div
+            className={`flex flex-col animate-in fade-in slide-in-from-bottom-3 duration-200 flex-1 min-h-0 w-full ${
+              currentView === 'settings' ? 'hidden' : ''
+            }`}
+            id="view-puzzle"
+            aria-hidden={currentView !== 'puzzle'}
+          >
             {/* Direct, clean immersive layout with absolutely no redundant top lesson header */}
             <GameCanvas
               level={selectedLevel}
