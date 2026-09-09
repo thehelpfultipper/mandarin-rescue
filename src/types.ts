@@ -100,6 +100,109 @@ export const VocabularyItemSchema = z.object({
 });
 export type VocabularyItem = z.infer<typeof VocabularyItemSchema>;
 
+export const REVIEWED_MANDARIN_MISSIONS = {
+  '小狗回家': {
+    adaptiveEligible: true,
+    pinyin: 'xiǎogǒu huíjiā',
+    english: 'The puppy goes home',
+    requiredConcepts: ['家'],
+    forbiddenConcepts: [],
+  },
+  '小狗避开火，回家': {
+    adaptiveEligible: true,
+    pinyin: 'xiǎogǒu bìkāi huǒ, huíjiā',
+    english: 'The puppy avoids the fire and goes home',
+    requiredConcepts: ['家'],
+    forbiddenConcepts: ['火'],
+  },
+  '先喝水，再回家': {
+    adaptiveEligible: true,
+    pinyin: 'xiān hē shuǐ, zài huíjiā',
+    english: 'Drink water first, then go home',
+    requiredConcepts: ['水', '家'],
+    forbiddenConcepts: [],
+  },
+  '先吃肉，再回家': {
+    adaptiveEligible: true,
+    pinyin: 'xiān chī ròu, zài huíjiā',
+    english: 'Eat meat first, then go home',
+    requiredConcepts: ['肉', '家'],
+    forbiddenConcepts: [],
+  },
+  '避开火，走安全路回家': {
+    adaptiveEligible: true,
+    pinyin: 'bìkāi huǒ, zǒu ānquán lù huíjiā',
+    english: 'Avoid the fire and take the safe path home',
+    requiredConcepts: ['路', '家'],
+    forbiddenConcepts: ['火'],
+  },
+  '先喝水，再吃肉，再回家': {
+    adaptiveEligible: true,
+    pinyin: 'xiān hē shuǐ, zài chī ròu, zài huíjiā',
+    english: 'Drink water first, then eat meat, then go home',
+    requiredConcepts: ['水', '肉', '家'],
+    forbiddenConcepts: [],
+  },
+  '用钥匙开门，避开火，再回家': {
+    adaptiveEligible: true,
+    pinyin: 'yòng yàoshi kāi mén, bìkāi huǒ, zài huíjiā',
+    english: 'Use the key to open the door, avoid the fire, then go home',
+    requiredConcepts: ['钥匙', '家'],
+    forbiddenConcepts: ['火'],
+  },
+  '向左走，先喝水，再回家': {
+    adaptiveEligible: false,
+    pinyin: 'xiàng zuǒ zǒu, xiān hē shuǐ, zài huíjiā',
+    english: 'Go left, drink water first, then go home',
+    requiredConcepts: ['左', '水', '家'],
+    forbiddenConcepts: [],
+  },
+  '向下走，通过安全门回家': {
+    adaptiveEligible: false,
+    pinyin: 'xiàng xià zǒu, tōngguò ānquánmén huíjiā',
+    english: 'Go down and return home through the safety gate',
+    requiredConcepts: ['下', '家'],
+    forbiddenConcepts: [],
+  },
+  '先拿水和肉，再避开火，回家': {
+    adaptiveEligible: true,
+    pinyin: 'xiān ná shuǐ hé ròu, zài bìkāi huǒ, huíjiā',
+    english: 'Get the water and meat first, then avoid the fire and go home',
+    requiredConcepts: ['水', '肉', '家'],
+    forbiddenConcepts: ['火'],
+  },
+  '踩开关，走捷径回家': {
+    adaptiveEligible: true,
+    pinyin: 'cǎi kāiguān, zǒu jiéjìng huíjiā',
+    english: 'Step on the switch, then take the shortcut home',
+    requiredConcepts: ['开关', '家'],
+    forbiddenConcepts: [],
+  },
+  '先拿钥匙，再开门；避开火，踩开关后回家': {
+    adaptiveEligible: true,
+    pinyin: 'xiān ná yàoshi, zài kāi mén; bìkāi huǒ, cǎi kāiguān hòu huíjiā',
+    english: 'Get the key first, then open the door; avoid the fire, step on the switch, and go home',
+    requiredConcepts: ['钥匙', '开关', '家'],
+    forbiddenConcepts: ['火'],
+  },
+} as const;
+
+export const REVIEWED_NODE_VOCABULARY = {
+  '狗': { pinyin: 'gǒu', english: 'Dog' },
+  '家': { pinyin: 'jiā', english: 'Home' },
+  '草': { pinyin: 'cǎo', english: 'Grass' },
+  '火': { pinyin: 'huǒ', english: 'Fire' },
+  '水': { pinyin: 'shuǐ', english: 'Water' },
+  '肉': { pinyin: 'ròu', english: 'Meat' },
+  '路': { pinyin: 'lù', english: 'Road / path' },
+  '钥匙': { pinyin: 'yàoshi', english: 'Key' },
+  '开关': { pinyin: 'kāiguān', english: 'Switch' },
+  '左': { pinyin: 'zuǒ', english: 'Left' },
+  '右': { pinyin: 'yòu', english: 'Right' },
+  '下': { pinyin: 'xià', english: 'Down' },
+  '上': { pinyin: 'shàng', english: 'Up' },
+} as const;
+
 // Configuration for a level
 export const LevelSchema = z.object({
   id: z.string().min(1),
@@ -167,42 +270,70 @@ export const LevelSchema = z.object({
   if (goals[0] && level.requiredNodeIds[level.requiredNodeIds.length - 1] !== goals[0].id) {
     ctx.addIssue({ code: 'custom', path: ['requiredNodeIds'], message: 'Required route must end at the goal' });
   }
-  for (const concept of ['水', '肉', '钥']) {
-    if (!level.mandarinClue.includes(concept)) continue;
-    const matchingNodes = level.nodes.filter(node => node.chineseChar === concept);
-    if (matchingNodes.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['nodes'],
-        message: `Clue-mentioned concept "${concept}" must have a node`,
-      });
-      continue;
+  const mission = REVIEWED_MANDARIN_MISSIONS[
+    level.mandarinClue as keyof typeof REVIEWED_MANDARIN_MISSIONS
+  ];
+  if (!mission) {
+    ctx.addIssue({ code: 'custom', path: ['mandarinClue'], message: 'Mandarin clue must use a reviewed mission' });
+  } else {
+    if (level.pinyinClue !== mission.pinyin) {
+      ctx.addIssue({ code: 'custom', path: ['pinyinClue'], message: 'Pinyin must match the reviewed Mandarin mission' });
     }
-    const escapedConcept = concept.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const isAvoided = new RegExp(`避开[^，。！？,.!?；;：:]{0,4}${escapedConcept}`).test(level.mandarinClue);
-    const expectedIds = isAvoided ? forbiddenSet : requiredSet;
-    if (!matchingNodes.some(node => expectedIds.has(node.id))) {
-      ctx.addIssue({
-        code: 'custom',
-        path: [isAvoided ? 'forbiddenNodeIds' : 'requiredNodeIds'],
-        message: `Clue-mentioned concept "${concept}" must be ${isAvoided ? 'forbidden' : 'required'}`,
-      });
+    if (level.englishTranslation !== mission.english) {
+      ctx.addIssue({ code: 'custom', path: ['englishTranslation'], message: 'English must match the reviewed Mandarin mission' });
+    }
+    for (const concept of mission.requiredConcepts) {
+      const matching = level.nodes.filter(node => node.chineseChar === concept);
+      if (!matching.some(node => requiredSet.has(node.id))) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['requiredNodeIds'],
+          message: `Reviewed concept "${concept}" must be required`,
+        });
+      }
+    }
+    for (const concept of mission.forbiddenConcepts) {
+      const matching = level.nodes.filter(node => node.chineseChar === concept);
+      if (!matching.some(node => forbiddenSet.has(node.id))) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['forbiddenNodeIds'],
+          message: `Reviewed avoided concept "${concept}" must be forbidden`,
+        });
+      }
     }
   }
-  level.nodes.forEach((node, index) => {
-    const clueRequiredType =
-      node.type === 'checkpoint' ||
-      node.type === 'key' ||
-      node.type === 'switch';
+  level.requiredNodeIds.slice(1, -1).forEach((id, index) => {
+    const node = level.nodes.find(candidate => candidate.id === id);
+    if (node && !['checkpoint', 'key', 'switch'].includes(node.type)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['requiredNodeIds', index + 1],
+        message: 'Intermediate required nodes must use a gameplay-enforced type',
+      });
+    }
+    if (mission && node && !(mission.requiredConcepts as readonly string[]).includes(node.chineseChar)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['requiredNodeIds', index + 1],
+        message: `Required concept "${node.chineseChar}" is not specified by the reviewed mission`,
+      });
+    }
+  });
+  level.vocabularyScaffold?.forEach((item, index) => {
+    const reviewed = REVIEWED_NODE_VOCABULARY[
+      item.char as keyof typeof REVIEWED_NODE_VOCABULARY
+    ];
     if (
-      clueRequiredType &&
-      level.mandarinClue.includes(node.chineseChar) &&
-      !requiredSet.has(node.id)
+      !reviewed ||
+      item.pinyin !== reviewed.pinyin ||
+      item.english !== reviewed.english ||
+      !level.nodes.some(node => node.chineseChar === item.char)
     ) {
       ctx.addIssue({
         code: 'custom',
-        path: ['nodes', index],
-        message: 'A clue-mentioned checkpoint, key, or switch must be required',
+        path: ['vocabularyScaffold', index],
+        message: 'Vocabulary scaffold must match a reviewed node word, pinyin, and English gloss',
       });
     }
   });

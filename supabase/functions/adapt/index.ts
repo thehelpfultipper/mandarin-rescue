@@ -18,6 +18,8 @@ import {
   isValidLevelResponse,
   MODEL_RESPONSE_JSON_SCHEMA,
   parseModelJson,
+  REVIEWED_EDGE_MISSIONS,
+  REVIEWED_EDGE_NODE_VOCABULARY,
 } from "./modelJson.ts";
 
 const CORS: Record<string, string> = {
@@ -47,7 +49,7 @@ const FALLBACK_LEVELS = [
       id: "lvl_fallback_1",
       title: "Fallback: Safe Journey Home",
       mandarinClue: "小狗避开火，回家",
-      pinyinClue: "xiǎo gǒu bì kāi huǒ, huí jiā",
+      pinyinClue: "xiǎogǒu bìkāi huǒ, huíjiā",
       englishTranslation: "The puppy avoids the fire and goes home",
       hint: "Guide the dog (狗) around Fire (火) to Home (家).",
       isAudioRequired: false,
@@ -96,8 +98,8 @@ const FALLBACK_LEVELS = [
     suggestedLevel: {
       id: "lvl_fallback_2",
       title: "Fallback: Thirsty Beagle",
-      mandarinClue: "先喝水再回家",
-      pinyinClue: "xiān hē shuǐ zài huí jiā",
+      mandarinClue: "先喝水，再回家",
+      pinyinClue: "xiān hē shuǐ, zài huíjiā",
       englishTranslation: "Drink water first, then go home",
       hint: "Reach Water (水) before Home (家). Dodge Fire (火).",
       isAudioRequired: false,
@@ -132,7 +134,7 @@ const FALLBACK_LEVELS = [
       learningGoal: "Use the key, avoid fire",
       grammarTarget: "用钥匙开门",
       scaffolding: [
-        { char: "钥", pinyin: "yào", english: "Key", emoji: "🔑", stage: "new" },
+        { char: "钥匙", pinyin: "yàoshi", english: "Key", emoji: "🔑", stage: "new" },
         { char: "火", pinyin: "huǒ", english: "Fire", emoji: "🔥", stage: "strong" },
         { char: "家", pinyin: "jiā", english: "Home", emoji: "🏠", stage: "strong" },
       ],
@@ -140,19 +142,19 @@ const FALLBACK_LEVELS = [
       constraints: ["Collect key before locked door"],
       plausibleRouteCount: 1,
       puzzleDifficulty: "hard",
-      whyMandarinMatters: "钥 unlocks the path; 火 is the decoy wing.",
+      whyMandarinMatters: "钥匙 unlocks the path; 火 is the decoy wing.",
     },
     suggestedLevel: {
       id: "lvl_fallback_3",
       title: "Fallback: The Locked Gate",
-      mandarinClue: "用钥匙开门，避开火",
-      pinyinClue: "yòng yào shi kāi mén, bì kāi huǒ",
-      englishTranslation: "Use the key to open the door, avoid the fire",
-      hint: "Grab Key (钥) before the locked passage. Avoid Fire (火).",
+      mandarinClue: "用钥匙开门，避开火，再回家",
+      pinyinClue: "yòng yàoshi kāi mén, bìkāi huǒ, zài huíjiā",
+      englishTranslation: "Use the key to open the door, avoid the fire, then go home",
+      hint: "Grab Key (钥匙) before the locked passage. Avoid Fire (火).",
       isAudioRequired: false,
       nodes: [
         { id: "n_actor", type: "actor", label: "Beagle", chineseChar: "狗", x: 50, y: 88 },
-        { id: "n_key", type: "key", label: "Key", chineseChar: "钥", x: 18, y: 55 },
+        { id: "n_key", type: "key", label: "Key", chineseChar: "钥匙", x: 18, y: 55 },
         { id: "n_fire", type: "hazard", label: "Fire", chineseChar: "火", x: 82, y: 55 },
         { id: "n_home", type: "goal", label: "Home", chineseChar: "家", x: 50, y: 14 },
       ],
@@ -168,7 +170,7 @@ const FALLBACK_LEVELS = [
       switches: [],
       routeLengthLimit: 360,
       vocabularyScaffold: [
-        { char: "钥", pinyin: "yào", english: "Key", emoji: "🔑", stage: "new" },
+        { char: "钥匙", pinyin: "yàoshi", english: "Key", emoji: "🔑", stage: "new" },
         { char: "火", pinyin: "huǒ", english: "Fire", emoji: "🔥", stage: "strong" },
         { char: "家", pinyin: "jiā", english: "Home", emoji: "🏠", stage: "strong" },
       ],
@@ -226,7 +228,13 @@ Rules for suggestedLevel:
 - Actor id n_actor char 狗; goal id n_home char 家.
 - requiredNodeIds starts with n_actor and ends with n_home.
 - forbiddenNodeIds includes distractors/hazards that are physically reachable.
-- Concise mandarinClue using ONLY these Hanzi (no filler 好/的/了/吗): 小 狗 猫 兔 鸟 回 家 先 喝 水 再 吃 肉 草 避 开 走 安 全 路 后 用 钥 匙 门 向 左 右 下 上 通 过 和 捷 径 省 能 机 关 火 去 拿 踩 ， 。
+- Choose one reviewed mission below verbatim. Copy its Mandarin key, pinyin, and English exactly; never rewrite or recombine them:
+${JSON.stringify(Object.fromEntries(
+  Object.entries(REVIEWED_EDGE_MISSIONS).filter(([, mission]) => mission.adaptiveEligible)
+))}
+- Use full learner-facing words 钥匙 for key and 开关 for switch. Never label a node 钥 or 开 as the complete noun.
+- vocabularyScaffold may contain only node words from this reviewed dictionary, copying pinyin and English exactly:
+${JSON.stringify(REVIEWED_EDGE_NODE_VOCABULARY)}
 - Include pinyinClue, englishTranslation, hint, vocabularyScaffold, walls, lockedDoors, oneWayGates, switches, routeLengthLimit.
 - missionFraming: one short story-forward line (no AI mention).
 - puzzleTemplate one of: required-checkpoints | key-door | switch-wall | hazard-avoidance | one-way-gate

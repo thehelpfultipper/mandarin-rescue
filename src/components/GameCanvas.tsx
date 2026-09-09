@@ -44,9 +44,11 @@ interface GameCanvasProps {
 const GRAMMAR_DICT: Record<string, { pinyin: string; english: string; emoji?: string }> = {
   '小': { pinyin: 'xiǎo', english: 'small / little' },
   '狗': { pinyin: 'gǒu', english: 'dog', emoji: '🐶' },
+  '小狗': { pinyin: 'xiǎogǒu', english: 'puppy / little dog', emoji: '🐶' },
   '犬': { pinyin: 'quǎn', english: 'dog / hound', emoji: '🐕' },
   '回': { pinyin: 'huí', english: 'return / go back' },
   '家': { pinyin: 'jiā', english: 'home', emoji: '🏠' },
+  '回家': { pinyin: 'huíjiā', english: 'go / return home', emoji: '🏠' },
   '先': { pinyin: 'xiān', english: 'first' },
   '喝': { pinyin: 'hē', english: 'drink' },
   '水': { pinyin: 'shuǐ', english: 'water', emoji: '💧' },
@@ -55,47 +57,52 @@ const GRAMMAR_DICT: Record<string, { pinyin: string; english: string; emoji?: st
   '肉': { pinyin: 'ròu', english: 'meat', emoji: '🥩' },
   '草': { pinyin: 'cǎo', english: 'grass', emoji: '🌿' },
   '避': { pinyin: 'bì', english: 'avoid' },
-  '开': { pinyin: 'kāi', english: 'open / avoid / switch', emoji: '🎛️' },
-  '避开': { pinyin: 'bì kāi', english: 'avoid / dodge', emoji: '⚠️' },
+  '开': { pinyin: 'kāi', english: 'open / turn on' },
+  '避开': { pinyin: 'bìkāi', english: 'avoid / keep away from', emoji: '⚠️' },
   '走': { pinyin: 'zǒu', english: 'walk / take' },
   '安': { pinyin: 'ān', english: 'safe' },
   '全': { pinyin: 'quán', english: 'complete' },
+  '安全': { pinyin: 'ānquán', english: 'safe / safety' },
   '路': { pinyin: 'lù', english: 'path / road', emoji: '🛣️' },
   '后': { pinyin: 'hòu', english: 'after / then' },
   '用': { pinyin: 'yòng', english: 'use' },
-  '钥': { pinyin: 'yào', english: 'key', emoji: '🔑' },
-  '匙': { pinyin: 'shi', english: 'key', emoji: '🔑' },
-  '钥匙': { pinyin: 'yào shi', english: 'key', emoji: '🔑' },
+  '钥': { pinyin: 'yào', english: 'key component in 钥匙' },
+  '匙': { pinyin: 'shi', english: 'second syllable of 钥匙' },
+  '钥匙': { pinyin: 'yàoshi', english: 'key', emoji: '🔑' },
   '门': { pinyin: 'mén', english: 'door / gate', emoji: '🚪' },
+  '安全门': { pinyin: 'ānquánmén', english: 'safety door / gate', emoji: '🚪' },
   '向': { pinyin: 'xiàng', english: 'towards' },
   '左': { pinyin: 'zuǒ', english: 'left', emoji: '⬅️' },
   '是': { pinyin: 'shì', english: 'is / are' },
   '源': { pinyin: 'yuán', english: 'source / resource' },
-  '水源': { pinyin: 'shuǐ yuán', english: 'water source', emoji: '💧' },
+  '水源': { pinyin: 'shuǐyuán', english: 'water source', emoji: '💧' },
   '右': { pinyin: 'yòu', english: 'right', emoji: '➡️' },
   '边': { pinyin: 'biān', english: 'side' },
-  '右边': { pinyin: 'yòu biān', english: 'right side', emoji: '➡️' },
+  '右边': { pinyin: 'yòubian', english: 'right side', emoji: '➡️' },
   '下': { pinyin: 'xià', english: 'down / downward', emoji: '⬇️' },
   '上': { pinyin: 'shàng', english: 'up / upward', emoji: '⬆️' },
   '通': { pinyin: 'tōng', english: 'pass' },
   '过': { pinyin: 'guò', english: 'through' },
-  '通过': { pinyin: 'tōng guò', english: 'pass through' },
+  '通过': { pinyin: 'tōngguò', english: 'pass through' },
   '和': { pinyin: 'hé', english: 'and' },
   '捷': { pinyin: 'jié', english: 'quick' },
   '径': { pinyin: 'jìng', english: 'path' },
-  '捷径': { pinyin: 'jié jìng', english: 'shortcut', emoji: '⚡' },
+  '捷径': { pinyin: 'jiéjìng', english: 'shortcut', emoji: '⚡' },
   '省': { pinyin: 'shěng', english: 'save' },
-  '能': { pinyin: 'néng', english: 'energy / power' },
-  '能源': { pinyin: 'néng yuán', english: 'energy', emoji: '🔋' },
+  '能': { pinyin: 'néng', english: 'can / be able to' },
+  '能源': { pinyin: 'néngyuán', english: 'energy / energy resources', emoji: '🔋' },
   '机': { pinyin: 'jī', english: 'machine' },
-  '关': { pinyin: 'guān', english: 'gate / switch' },
-  '机关': { pinyin: 'jī guān', english: 'switch / mechanism', emoji: '🎛️' },
+  '关': { pinyin: 'guān', english: 'close / turn off; barrier' },
+  '开关': { pinyin: 'kāiguān', english: 'switch', emoji: '🎛️' },
+  '机关': { pinyin: 'jīguān', english: 'mechanism / device; organization' },
   '火': { pinyin: 'huǒ', english: 'fire', emoji: '🔥' },
   '去': { pinyin: 'qù', english: 'go to' },
   '拿': { pinyin: 'ná', english: 'take / grab' },
-  '踩': { pinyin: 'cǎi', english: 'step on / flip' },
-  '捕': { pinyin: 'bǔ', english: 'catcher / capture', emoji: '🚨' },
-  '员': { pinyin: 'yuán', english: 'technician / staff', emoji: '🧪' }
+  '踩': { pinyin: 'cǎi', english: 'step / tread on' },
+  '捕': { pinyin: 'bǔ', english: 'catch / capture' },
+  '员': { pinyin: 'yuán', english: 'member / personnel' },
+  '追捕者': { pinyin: 'zhuībǔzhě', english: 'pursuer / catcher', emoji: '🚨' },
+  '技术员': { pinyin: 'jìshùyuán', english: 'technician', emoji: '🧪' }
 };
 
 interface InteractiveClueProps {
@@ -114,18 +121,33 @@ const MISSION_NOUNS = new Set([
 ]);
 
 function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveClueProps) {
-  const [activeCharIndex, setActiveCharIndex] = useState<number | null>(null);
-  const chars = Array.from(clue);
+  const [activeTokenIndex, setActiveTokenIndex] = useState<number | null>(null);
+  const helperWords = [...new Set([
+    ...Object.keys(GRAMMAR_DICT),
+    ...(scaffold || []).map(item => item.char),
+  ])].sort((a, b) => Array.from(b).length - Array.from(a).length);
+  const tokens: string[] = [];
+  for (let index = 0; index < clue.length;) {
+    const match = helperWords.find(word => clue.startsWith(word, index));
+    if (match) {
+      tokens.push(match);
+      index += match.length;
+    } else {
+      const [next] = Array.from(clue.slice(index));
+      tokens.push(next);
+      index += next.length;
+    }
+  }
   // Always show the full phrase: roomy on short clues, denser wrap on long ones
-  const density = chars.length <= 7 ? 'roomy' : 'compact';
+  const density = Array.from(clue).length <= 7 ? 'roomy' : 'compact';
   const sizeClass =
     density === 'roomy'
       ? 'text-4xl min-h-[48px] min-w-[44px] px-1'
       : 'text-3xl min-h-[44px] min-w-[40px] px-0.5';
 
   const activeHelper =
-    activeCharIndex !== null
-      ? scaffold?.find(s => s.char === chars[activeCharIndex]) || GRAMMAR_DICT[chars[activeCharIndex]]
+    activeTokenIndex !== null
+      ? scaffold?.find(s => s.char === tokens[activeTokenIndex]) || GRAMMAR_DICT[tokens[activeTokenIndex]]
       : null;
 
   return (
@@ -135,24 +157,26 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
         role="group"
         aria-label="Mandarin clue. Tap a character for pinyin and meaning."
       >
-        {chars.map((char, index) => {
-          if (CLUE_PUNCT.test(char)) {
+        {tokens.map((token, index) => {
+          if (CLUE_PUNCT.test(token)) {
             return (
               <span
                 key={index}
                 className={`${density === 'roomy' ? 'text-3xl' : 'text-2xl'} text-stone-300 font-serif px-0.5 leading-none select-none`}
                 aria-hidden
               >
-                {char}
+                {token}
               </span>
             );
           }
 
-          const helper = scaffold?.find(s => s.char === char) || GRAMMAR_DICT[char];
+          const helper = scaffold?.find(s => s.char === token) || GRAMMAR_DICT[token];
           const hasHelp = !!helper;
           const isMission =
-            MISSION_NOUNS.has(char) || !!helper?.emoji || !!scaffold?.some(s => s.char === char);
-          const isActive = activeCharIndex === index && hasHelp;
+            Array.from(token).some(char => MISSION_NOUNS.has(char)) ||
+            !!helper?.emoji ||
+            !!scaffold?.some(s => s.char === token);
+          const isActive = activeTokenIndex === index && hasHelp;
 
           return (
             <button
@@ -160,10 +184,10 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
               type="button"
               onClick={() => {
                 if (!hasHelp) return;
-                setActiveCharIndex(activeCharIndex === index ? null : index);
+                setActiveTokenIndex(activeTokenIndex === index ? null : index);
               }}
-              aria-expanded={hasHelp ? activeCharIndex === index : undefined}
-              aria-label={hasHelp ? `${char}, show meaning` : char}
+              aria-expanded={hasHelp ? activeTokenIndex === index : undefined}
+              aria-label={hasHelp ? `${token}, show meaning` : token}
               tabIndex={hasHelp ? 0 : -1}
               className={`${sizeClass} font-serif inline-flex items-center justify-center rounded-md transition duration-150 select-none leading-none ${
                 hasHelp
@@ -175,7 +199,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
                   : 'text-stone-300 font-semibold cursor-default'
               } ${isActive ? 'bg-amber-400/15 text-amber-50 ring-1 ring-amber-400/40' : ''}`}
             >
-              {char}
+              {token}
             </button>
           );
         })}
@@ -189,12 +213,12 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
 
       {/* In-flow meaning card cannot clip into a phone notch or cover the clue. */}
       <AnimatePresence>
-        {activeCharIndex !== null && activeHelper && (
+        {activeTokenIndex !== null && activeHelper && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            aria-label={`${chars[activeCharIndex]} meaning`}
+            aria-label={`${tokens[activeTokenIndex]} meaning`}
             aria-live="polite"
             className="mx-auto mt-1 min-h-[44px] max-w-[calc(100vw-1rem)] rounded-xl border border-amber-700/60 bg-[#1C1A17] px-3 py-1.5 shadow-lg flex items-center justify-center gap-2 text-center"
           >
@@ -301,8 +325,8 @@ export function GameCanvas({
     const utterance = new SpeechSynthesisUtterance(level.mandarinClue);
     utterance.lang = 'zh-CN';
     utterance.rate = 0.85;
+    utterance.onstart = () => onClueSpoken?.(level.mandarinClue);
     window.speechSynthesis.speak(utterance);
-    onClueSpoken?.(level.mandarinClue);
   };
 
   const handleListen = () => {
@@ -671,7 +695,7 @@ export function GameCanvas({
         if (interactionsAtDoor.keys.includes(door.keyNodeId)) continue;
         const keyNode = level.nodes.find(n => n.id === door.keyNodeId);
         setWallShockwave({ x: intersect.x, y: intersect.y, wallId: door.id });
-        setFeedbackMsg(`Locked — grab ${keyNode?.chineseChar || '钥'} first, then this gate opens.`);
+        setFeedbackMsg(`Locked — grab ${keyNode?.chineseChar || '钥匙'} first, then this gate opens.`);
         setFeedbackKind('language');
         if (soundEnabled && 'vibrate' in navigator) navigator.vibrate(15);
         blocked = true;
@@ -975,7 +999,7 @@ export function GameCanvas({
       setStatus('failed');
       setRhythmState('settlement');
       setFailureMarker({ x: touchedForbidden.x, y: touchedForbidden.y, type: 'wrong_target' });
-      setFeedbackMsg(`「${touchedForbidden.chineseChar}」 isn’t in the clue — that choice fails the rescue.`);
+      setFeedbackMsg(`「${touchedForbidden.chineseChar}」 isn’t the requested choice — that route fails the rescue.`);
       setFeedbackKind('language');
       onFailure?.('language', [touchedForbidden.chineseChar], level);
       setTimeout(() => {
@@ -1003,7 +1027,7 @@ export function GameCanvas({
 
     const attempts: Record<string, { success: number; failure: number }> = {};
     level.nodes.forEach(n => {
-      if (n.type === 'goal' || n.type === 'checkpoint' || n.type === 'key') {
+      if (n.type === 'goal' || n.type === 'checkpoint' || n.type === 'key' || n.type === 'switch') {
         attempts[n.chineseChar] = { success: 1, failure: 0 };
       }
     });
@@ -1676,7 +1700,7 @@ export function GameCanvas({
                   </g>
                 </g>
               );
-            } else if (node.chineseChar === '钥') {
+            } else if (node.chineseChar === '钥' || node.chineseChar === '钥匙') {
               nodeArtwork = (
                 <g transform="translate(0, 2)">
                   <circle r={isKeyCollected ? "0" : "15"} fill="none" stroke="#F59E0B" strokeWidth="1" strokeDasharray="3,3" className="animate-spin" style={{ animationDuration: '8s' }} />
@@ -1688,7 +1712,7 @@ export function GameCanvas({
                   </g>
                 </g>
               );
-            } else if (node.chineseChar === '开') {
+            } else if (node.chineseChar === '开' || node.chineseChar === '开关') {
               nodeArtwork = (
                 <g transform="translate(0, 4)">
                   {/* Floor pressure mechanism plate */}
@@ -1736,7 +1760,7 @@ export function GameCanvas({
                 )}
 
                 {/* Node Generic Circular Rim for standard non-architectural targets */}
-                {node.chineseChar !== '家' && node.chineseChar !== '水' && node.chineseChar !== '肉' && node.chineseChar !== '草' && node.chineseChar !== '钥' && node.chineseChar !== '开' && node.chineseChar !== '火' && node.type !== 'actor' && (
+                {node.chineseChar !== '家' && node.chineseChar !== '水' && node.chineseChar !== '肉' && node.chineseChar !== '草' && node.chineseChar !== '钥' && node.chineseChar !== '钥匙' && node.chineseChar !== '开' && node.chineseChar !== '开关' && node.chineseChar !== '火' && node.type !== 'actor' && (
                   <circle 
                     cx={cx} cy={cy} r="22" 
                     fill={node.type === 'hazard' ? '#291414' : node.type === 'checkpoint' ? (isCheckpointVisited ? '#064E3B' : '#0E2A38') : '#241E1A'}
@@ -1763,19 +1787,19 @@ export function GameCanvas({
                       node.chineseChar === '水' ? cy - 12 :
                       node.chineseChar === '肉' ? cy - 11 :
                       node.chineseChar === '草' ? cy - 11 :
-                      node.chineseChar === '钥' ? cy - 14 :
-                      node.chineseChar === '开' ? cy - 10 :
+                      (node.chineseChar === '钥' || node.chineseChar === '钥匙') ? cy - 14 :
+                      (node.chineseChar === '开' || node.chineseChar === '开关') ? cy - 10 :
                       node.chineseChar === '火' ? cy - 12 :
                       cy + 6
                     } 
                     textAnchor="middle" 
-                    className={`font-serif text-2xl font-black select-none ${
+                    className={`font-serif ${Array.from(node.chineseChar).length > 1 ? 'text-base' : 'text-2xl'} font-black select-none ${
                       node.chineseChar === '家' ? (isGoalActive ? 'fill-emerald-300 font-bold' : 'fill-stone-300') :
                       node.chineseChar === '水' ? 'fill-cyan-300' :
                       node.chineseChar === '肉' ? 'fill-amber-100' :
                       node.chineseChar === '草' ? 'fill-emerald-200' :
-                      node.chineseChar === '钥' ? (isKeyCollected ? 'fill-stone-600 opacity-40' : 'fill-yellow-100') :
-                      node.chineseChar === '开' ? (isSwitchOn ? 'fill-emerald-400' : 'fill-purple-200') :
+                      (node.chineseChar === '钥' || node.chineseChar === '钥匙') ? (isKeyCollected ? 'fill-stone-600 opacity-40' : 'fill-yellow-100') :
+                      (node.chineseChar === '开' || node.chineseChar === '开关') ? (isSwitchOn ? 'fill-emerald-400' : 'fill-purple-200') :
                       node.chineseChar === '火' ? 'fill-rose-100 animate-pulse' :
                       'fill-stone-200'
                     }`}

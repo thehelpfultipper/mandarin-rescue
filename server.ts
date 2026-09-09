@@ -4,7 +4,11 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { z } from 'zod';
-import { GeminiAdaptationResponseSchema } from './src/types.js';
+import {
+  GeminiAdaptationResponseSchema,
+  REVIEWED_MANDARIN_MISSIONS,
+  REVIEWED_NODE_VOCABULARY,
+} from './src/types.js';
 
 dotenv.config();
 
@@ -40,7 +44,7 @@ const APPROVED_VOCAB_CHARS = new Set([
 ]);
 
 const APPROVED_NODE_CHARS = new Set([
-  '狗', '犬', '猫', '兔', '鸟', '家', '水', '火', '肉', '草', '钥', '开', '左', '右', '上', '下', '路', '门', '虫', '鱼'
+  '狗', '家', '水', '火', '肉', '草', '钥匙', '开关', '左', '右', '上', '下', '路', '门'
 ]);
 
 // -------------------------------------------------------------
@@ -385,36 +389,13 @@ function sanitizeGeminiOutput(data: any): any {
   // 2. Sanitize suggestedLevel fields
   if (!lvl.id) lvl.id = 'lvl_gemini_' + Date.now();
   if (!lvl.title) lvl.title = 'Adaptive Mission';
-  if (!lvl.mandarinClue) lvl.mandarinClue = '狗回家先喝水';
-  if (!lvl.pinyinClue) lvl.pinyinClue = 'gǒu huí jiā xiān hē shuǐ';
-  if (!lvl.englishTranslation) lvl.englishTranslation = 'The dog goes home and drinks water first';
+  if (!lvl.mandarinClue) lvl.mandarinClue = '小狗回家';
+  if (!lvl.pinyinClue) lvl.pinyinClue = 'xiǎogǒu huíjiā';
+  if (!lvl.englishTranslation) lvl.englishTranslation = 'The puppy goes home';
   if (!lvl.hint) lvl.hint = 'Draw a line connecting the Chinese characters.';
 
-  // Closed dictionary: Gemini often injects filler (好/的/了/吗…) which fails STAGE 2 vocab checks.
-  // Strip those from the clue before validation so otherwise-good boards are not discarded.
-  if (typeof lvl.mandarinClue === 'string') {
-    const before = lvl.mandarinClue;
-    const filtered = Array.from(before)
-      .filter(
-        (char) =>
-          typeof char === 'string' &&
-          (PUNCTUATION_AND_SYMBOLS.has(char) || /\s/.test(char) || APPROVED_VOCAB_CHARS.has(char))
-      )
-      .join('');
-    if (filtered !== before) {
-      const removed = [
-        ...new Set(
-          Array.from(before).filter(
-            (c) =>
-              typeof c === 'string' &&
-              !PUNCTUATION_AND_SYMBOLS.has(c) && !/\s/.test(c) && !APPROVED_VOCAB_CHARS.has(c)
-          )
-        )
-      ].join('');
-      console.warn(`[sanitize] Stripped unapproved clue char(s) "${removed}": "${before}" → "${filtered}"`);
-      lvl.mandarinClue = filtered.length > 0 ? filtered : '狗回家';
-    }
-  }
+  // Never rewrite one member of the Mandarin/pinyin/English triple.
+  // Unreviewed language is rejected atomically by LevelSchema below.
 
   // Keep scaffolding inside the same closed set (single-char entries only).
   const keepApprovedScaffold = (arr: any[]) =>
@@ -523,18 +504,12 @@ function sanitizeGeminiOutput(data: any): any {
   if (template === 'key-door') {
     let keyNode = lvl.nodes.find((n: any) => n.type === 'key');
     if (!keyNode) {
-      keyNode = { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥', x: 35, y: 80 };
+      keyNode = { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥匙', x: 35, y: 80 };
       lvl.nodes.push(keyNode);
     }
+    keyNode.chineseChar = '钥匙';
     if (!lvl.requiredNodeIds.includes(keyNode.id)) {
       lvl.requiredNodeIds.splice(1, 0, keyNode.id);
-    }
-    if (!lvl.mandarinClue.includes('钥')) {
-      lvl.mandarinClue = '用钥匙开门';
-      lvl.pinyinClue = 'yòng yào shi kāi mén';
-      lvl.englishTranslation = 'Use the key to open the door';
-    } else if (!lvl.mandarinClue.includes('门')) {
-      lvl.mandarinClue += '开门';
     }
     if (lvl.lockedDoors.length === 0) {
       lvl.lockedDoors.push({
@@ -551,42 +526,19 @@ function sanitizeGeminiOutput(data: any): any {
   } else if (template === 'switch-wall') {
     let switchNode = lvl.nodes.find((n: any) => n.type === 'switch');
     if (!switchNode) {
-      switchNode = { id: 'n_switch', type: 'switch', label: 'Switch', chineseChar: '开', x: 35, y: 80 };
+      switchNode = { id: 'n_switch', type: 'switch', label: 'Switch', chineseChar: '开关', x: 35, y: 80 };
       lvl.nodes.push(switchNode);
     }
+    switchNode.chineseChar = '开关';
     if (!lvl.requiredNodeIds.includes(switchNode.id)) {
       lvl.requiredNodeIds.splice(1, 0, switchNode.id);
-    }
-    if (!lvl.mandarinClue.includes('开')) {
-      lvl.mandarinClue = '踩开关走安全路';
-      lvl.pinyinClue = 'cǎi kāi guān zǒu ān quán lù';
-      lvl.englishTranslation = 'Step on the switch to take the safe path';
     }
     if (lvl.switches.length === 0) {
       const swWallId = 'w_switchable_barrier';
       lvl.walls.push({ id: swWallId, x1: 50, y1: 25, x2: 50, y2: 75 });
       lvl.switches.push({ id: 'sw_1', nodeId: switchNode.id, targetWallId: swWallId });
     }
-  } else if (template === 'required-checkpoints') {
-    if (!lvl.mandarinClue.includes('先') && !lvl.mandarinClue.includes('后') && !lvl.mandarinClue.includes('再')) {
-      if (lvl.mandarinClue.includes('水')) {
-        lvl.mandarinClue = '小狗先喝水，再回家';
-        lvl.pinyinClue = 'xiǎo gǒu xiān hē shuǐ, zài huí jiā';
-        lvl.englishTranslation = 'The puppy drinks water first, then goes home';
-      } else if (lvl.mandarinClue.includes('肉')) {
-        lvl.mandarinClue = '小狗先吃肉，再回家';
-        lvl.pinyinClue = 'xiǎo gǒu xiān chī ròu, zài huí jiā';
-        lvl.englishTranslation = 'The puppy eats meat first, then goes home';
-      } else {
-        lvl.mandarinClue = '先' + lvl.mandarinClue + '再回家';
-      }
-    }
   } else if (template === 'hazard-avoidance') {
-    if (!lvl.mandarinClue.includes('避') && !lvl.mandarinClue.includes('安全')) {
-      lvl.mandarinClue = '小狗避开火，回家';
-      lvl.pinyinClue = 'xiǎo gǒu bì kāi huǒ, huí jiā';
-      lvl.englishTranslation = 'The puppy avoids the fire and goes home';
-    }
     let fireNode = lvl.nodes.find((n: any) => n.chineseChar === '火' || n.type === 'hazard');
     if (!fireNode) {
       fireNode = { id: 'n_hazard_fire', type: 'hazard', label: 'Fire', chineseChar: '火', x: 50, y: 50 };
@@ -691,6 +643,13 @@ function validateLevelPlan(data: any): boolean {
   const response = result.data;
   const suggestedLevel = response.suggestedLevel;
   const plan = response.levelPlan;
+  const reviewedMission = REVIEWED_MANDARIN_MISSIONS[
+    suggestedLevel.mandarinClue as keyof typeof REVIEWED_MANDARIN_MISSIONS
+  ];
+  if (!reviewedMission?.adaptiveEligible) {
+    console.warn('LevelPlan selected a curated-only spatial mission');
+    return false;
+  }
 
   // STAGE 2: Vocabulary Check
   const clueChars = Array.from(suggestedLevel.mandarinClue);
@@ -906,7 +865,7 @@ const FALLBACK_LEVELS = [
       id: "lvl_fallback_1",
       title: "Fallback: Safe Journey Home",
       mandarinClue: "小狗避开火，回家",
-      pinyinClue: "xiǎo gǒu bì kāi huǒ, huí jiā",
+      pinyinClue: "xiǎogǒu bìkāi huǒ, huíjiā",
       englishTranslation: "The puppy avoids the fire and goes home",
       hint: "Guide the dog (狗) around the Fire hazard (火) to reach Home (家).",
       nodes: [
@@ -926,7 +885,6 @@ const FALLBACK_LEVELS = [
       routeLengthLimit: 300,
       vocabularyScaffold: [
         { char: '狗', pinyin: 'gǒu', english: 'Dog', emoji: '🐶', stage: 'new' as const },
-        { char: '避', pinyin: 'bì', english: 'Avoid', emoji: '🛡️', stage: 'new' as const },
         { char: '火', pinyin: 'huǒ', english: 'Fire', emoji: '🔥', stage: 'new' as const },
         { char: '家', pinyin: 'jiā', english: 'Home', emoji: '🏠', stage: 'new' as const }
       ]
@@ -952,8 +910,8 @@ const FALLBACK_LEVELS = [
     suggestedLevel: {
       id: "lvl_fallback_2",
       title: "Fallback: Thirsty Beagle",
-      mandarinClue: "先喝水再回家",
-      pinyinClue: "xiān hē shuǐ zài huí jiā",
+      mandarinClue: "先喝水，再回家",
+      pinyinClue: "xiān hē shuǐ, zài huíjiā",
       englishTranslation: "Drink water first, then go home",
       hint: "Guide the dog (狗) to drink water (水) first, then go Home (家). Dodge the Fire hazard (火)!",
       nodes: [
@@ -986,47 +944,41 @@ const FALLBACK_LEVELS = [
       learningGoal: "Acquire the key to open the door, introducing locks and triggers",
       grammarTarget: "Action and tool specification '用钥匙开门'",
       scaffolding: [
-        { char: '钥', pinyin: 'yào', english: 'Key', emoji: '🔑', stage: 'new' },
-        { char: '开', pinyin: 'kāi', english: 'Switch/Open', emoji: '🎛️', stage: 'new' },
+        { char: '钥匙', pinyin: 'yàoshi', english: 'Key', emoji: '🔑', stage: 'new' },
         { char: '火', pinyin: 'huǒ', english: 'Fire', emoji: '🔥', stage: 'strong' }
       ],
       puzzleTemplate: "key-door",
       constraints: ["Must collect Key node before door line"],
       plausibleRouteCount: 1,
       puzzleDifficulty: "hard" as const,
-      whyMandarinMatters: "Distinguishing the Key ('钥') from other trap triggers is required to open the path."
+      whyMandarinMatters: "Recognizing the Key (钥匙) is required to open the path."
     },
     suggestedLevel: {
       id: "lvl_fallback_3",
       title: "Fallback: The Locked Gate",
-      mandarinClue: "用钥匙开门，避开火",
-      pinyinClue: "yòng yào shi kāi mén, bì kāi huǒ",
-      englishTranslation: "Use the key to open the door, avoid the fire",
-      hint: "Use the Key (钥) to unlock the door on the left. Avoid the Switch (开) on the right; it is a trap that opens the wall releasing Fire (火)!",
+      mandarinClue: "用钥匙开门，避开火，再回家",
+      pinyinClue: "yòng yàoshi kāi mén, bìkāi huǒ, zài huíjiā",
+      englishTranslation: "Use the key to open the door, avoid the fire, then go home",
+      hint: "Use the Key (钥匙) to unlock the door. Avoid Fire (火), then return Home (家).",
       nodes: [
         { id: "n_actor", type: "actor" as const, label: "Beagle", chineseChar: "狗", x: 48, y: 85 },
-        { id: "n_key", type: "key" as const, label: "Key", chineseChar: "钥", x: 20, y: 55 },
-        { id: "n_switch", type: "switch" as const, label: "Switch", chineseChar: "开", x: 80, y: 55 },
+        { id: "n_key", type: "key" as const, label: "Key", chineseChar: "钥匙", x: 20, y: 55 },
         { id: "n_fire", type: "hazard" as const, label: "Fire", chineseChar: "火", x: 80, y: 25 },
         { id: "n_home", type: "goal" as const, label: "Home", chineseChar: "家", x: 52, y: 15 }
       ],
       requiredNodeIds: ["n_actor", "n_key", "n_home"],
       forbiddenNodeIds: ["n_fire"],
       walls: [
-        { id: "w_mid", x1: 50, y1: 30, x2: 50, y2: 75 },
-        { id: "w_trap", x1: 65, y1: 30, x2: 100, y2: 30 }
+        { id: "w_mid", x1: 50, y1: 30, x2: 50, y2: 75 }
       ],
       lockedDoors: [
         { id: "d_left", x1: 0, y1: 30, x2: 50, y2: 30, keyNodeId: "n_key" }
       ],
       oneWayGates: [],
-      switches: [
-        { id: "sw1", nodeId: "n_switch", targetWallId: "w_trap" }
-      ],
+      switches: [],
       routeLengthLimit: 300,
       vocabularyScaffold: [
-        { char: '钥', pinyin: 'yào', english: 'Key', emoji: '🔑', stage: 'new' as const },
-        { char: '开', pinyin: 'kāi', english: 'Switch/Open', emoji: '🎛️', stage: 'new' as const },
+        { char: '钥匙', pinyin: 'yàoshi', english: 'Key', emoji: '🔑', stage: 'new' as const },
         { char: '火', pinyin: 'huǒ', english: 'Fire', emoji: '🔥', stage: 'strong' as const }
       ]
     },
@@ -1127,7 +1079,7 @@ ${modelContextPrompt}
 - SILENT PLAY MODE STATUS: ${silentPlay ? 'ACTIVE' : 'INACTIVE'} (If ACTIVE, you are FORBIDDEN from requiring audio/sound to solve the level. The 'isAudioRequired' property in suggestedLevel MUST be set to false. The level must be fully solvable visually with written mandarinClue).
 
 Your tasks:
-1. Choose WHAT the learner should retrieve (e.g. Water '水', Meat '肉', Key '钥') and WHICH approved puzzle type (puzzleTemplate) makes that information necessary.
+1. Choose WHAT the learner should retrieve (e.g. Water '水', Meat '肉', Key '钥匙') and WHICH approved puzzle type (puzzleTemplate) makes that information necessary.
    Approved puzzle templates:
    - "required-checkpoints": visiting checkpoints in chronological sequence.
    - "key-door": collecting keys to pass through doors.
@@ -1144,10 +1096,14 @@ Your tasks:
    - Distractor nodes must have different Chinese characters (e.g. if target is Meat '肉', add grass '草' or water '水' elsewhere as a physical distractor).
    - "requiredNodeIds" must list the exact sequence to reach goal, starting with "n_actor", followed by intermediate checkpoints, and ending with "n_home".
    - "forbiddenNodeIds" must contain hazards or distractors.
-4. Keep the Mandarin clue (mandarinClue) concise. HARD RULE — every Hanzi in mandarinClue MUST appear in this closed Dictionary (punctuation ，。 allowed). Do NOT invent filler like 好/的/了/吗/吧/呢/很/要/请:
-   - Dictionary: ['小', '狗', '猫', '兔', '鸟', '回', '家', '先', '喝', '水', '再', '吃', '肉', '草', '避', '开', '走', '安', '全', '路', '后', '用', '钥', '匙', '门', '向', '左', '右', '下', '上', '通', '过', '和', '捷', '径', '省', '能', '机', '关', '火', '去', '拿', '踩', '，', '。']
-   - Make sure your clue matches the grammar targeted by your template.
-   - Translate accurately in englishTranslation.
+4. Choose one reviewed mission below verbatim. Copy its Mandarin key, pinyin, and English exactly; never rewrite or recombine them:
+${JSON.stringify(Object.fromEntries(
+  Object.entries(REVIEWED_MANDARIN_MISSIONS).filter(([, mission]) => mission.adaptiveEligible)
+))}
+   - Use full learner-facing words 钥匙 for key and 开关 for switch. Never label a node 钥 or 开 as the complete noun.
+   - Every required intermediate node must be a checkpoint, key, or switch explicitly listed by the selected mission.
+   - vocabularyScaffold may contain only node words from this reviewed dictionary, copying pinyin and English exactly:
+${JSON.stringify(REVIEWED_NODE_VOCABULARY)}
 5. Provide a child-friendly visual hint in "hint" that teaches the Mandarin clue's semantics.
 
 Return EXACTLY a Zod-parsable JSON object matching the requested schema. Do NOT invent new node types or physical mechanics.`,

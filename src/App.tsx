@@ -28,123 +28,9 @@ import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { GameCanvas } from './components/GameCanvas';
 import { adaptEndpoint, adaptiveRuntimeId } from './lib/adaptClient';
 
-const GRAMMAR_DICT: Record<string, { pinyin: string; english: string; emoji?: string }> = {
-  '小': { pinyin: 'xiǎo', english: 'small / little' },
-  '狗': { pinyin: 'gǒu', english: 'dog', emoji: '🐶' },
-  '回': { pinyin: 'huí', english: 'return / go back' },
-  '家': { pinyin: 'jiā', english: 'home', emoji: '🏠' },
-  '先': { pinyin: 'xiān', english: 'first' },
-  '喝': { pinyin: 'hē', english: 'drink' },
-  '水': { pinyin: 'shuǐ', english: 'water', emoji: '💧' },
-  '再': { pinyin: 'zài', english: 'then' },
-  '吃': { pinyin: 'chī', english: 'eat' },
-  '肉': { pinyin: 'ròu', english: 'meat', emoji: '🥩' },
-  '草': { pinyin: 'cǎo', english: 'grass', emoji: '🌿' },
-  '避': { pinyin: 'bì', english: 'avoid' },
-  '开': { pinyin: 'kāi', english: 'open / avoid / switch', emoji: '🎛️' },
-  '避开': { pinyin: 'bì kāi', english: 'avoid / dodge', emoji: '⚠️' },
-  '走': { pinyin: 'zǒu', english: 'walk / take' },
-  '安': { pinyin: 'ān', english: 'safe' },
-  '全': { pinyin: 'quán', english: 'complete' },
-  '路': { pinyin: 'lù', english: 'path / road', emoji: '🛣️' },
-  '后': { pinyin: 'hòu', english: 'after / then' },
-  '用': { pinyin: 'yòng', english: 'use' },
-  '钥': { pinyin: 'yào', english: 'key', emoji: '🔑' },
-  '匙': { pinyin: 'shi', english: 'key', emoji: '🔑' },
-  '钥匙': { pinyin: 'yào shi', english: 'key', emoji: '🔑' },
-  '门': { pinyin: 'mén', english: 'door / gate', emoji: '🚪' },
-  '向': { pinyin: 'xiàng', english: 'towards' },
-  '左': { pinyin: 'zuǒ', english: 'left', emoji: '⬅️' },
-  '是': { pinyin: 'shì', english: 'is / are' },
-  '源': { pinyin: 'yuán', english: 'source / resource' },
-  '水源': { pinyin: 'shuǐ yuán', english: 'water source', emoji: '💧' },
-  '右': { pinyin: 'yòu', english: 'right', emoji: '➡️' },
-  '边': { pinyin: 'biān', english: 'side' },
-  '右边': { pinyin: 'yòu biān', english: 'right side', emoji: '➡️' },
-  '下': { pinyin: 'xià', english: 'down / downward', emoji: '⬇️' },
-  '上': { pinyin: 'shàng', english: 'up / upward', emoji: '⬆️' },
-  '通': { pinyin: 'tōng', english: 'pass' },
-  '过': { pinyin: 'guò', english: 'through' },
-  '通过': { pinyin: 'tōng guò', english: 'pass through' },
-  '和': { pinyin: 'hé', english: 'and' },
-  '捷': { pinyin: 'jié', english: 'quick' },
-  '径': { pinyin: 'jìng', english: 'path' },
-  '捷径': { pinyin: 'jié jìng', english: 'shortcut', emoji: '⚡' },
-  '省': { pinyin: 'shěng', english: 'save' },
-  '能': { pinyin: 'néng', english: 'energy / power' },
-  '能源': { pinyin: 'néng yuán', english: 'energy', emoji: '🔋' },
-  '机': { pinyin: 'jī', english: 'machine' },
-  '关': { pinyin: 'guān', english: 'gate / switch' },
-  '机关': { pinyin: 'jī guān', english: 'switch / mechanism', emoji: '🎛️' },
-  '火': { pinyin: 'huǒ', english: 'fire', emoji: '🔥' },
-  '去': { pinyin: 'qù', english: 'go to' },
-  '拿': { pinyin: 'ná', english: 'take / grab' },
-  '踩': { pinyin: 'cǎi', english: 'step on / flip' }
-};
-
-interface InteractiveClueProps {
-  clue: string;
-  scaffold?: { char: string; pinyin: string; english: string; emoji?: string; stage: string }[];
-}
-
-function InteractiveClue({ clue, scaffold }: InteractiveClueProps) {
-  const [activeCharIndex, setActiveCharIndex] = useState<number | null>(null);
-
-  const chars = Array.from(clue);
-
-  return (
-    <div className="flex flex-col items-center gap-3 w-full">
-      <div className="flex flex-wrap justify-center gap-1.5 py-1">
-        {chars.map((char, index) => {
-          const helper = scaffold?.find(s => s.char === char) || GRAMMAR_DICT[char];
-          const hasHelp = !!helper;
-
-          return (
-            <div key={index} className="relative">
-              <button
-                type="button"
-                onClick={() => setActiveCharIndex(activeCharIndex === index ? null : index)}
-                className={`text-4xl sm:text-5xl font-serif font-black px-3 py-1.5 rounded-xl transition duration-150 select-none ${
-                  hasHelp 
-                    ? 'bg-stone-850 text-amber-200 border border-stone-800 hover:bg-stone-800 hover:border-amber-500/40 cursor-pointer active:scale-95' 
-                    : 'text-stone-100'
-                }`}
-              >
-                {char}
-              </button>
-
-              <AnimatePresence>
-                {activeCharIndex === index && hasHelp && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 5, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                    className="absolute z-50 left-1/2 -translate-x-1/2 bottom-full mb-2 bg-[#1C1A17] text-[#FAF9F6] border border-stone-800 rounded-xl p-3 shadow-2xl flex flex-col items-center gap-0.5 min-w-[130px] text-center"
-                  >
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-[#1C1A17]" />
-                    <span className="text-sm font-black text-amber-400 tracking-wide">{helper.pinyin}</span>
-                    <span className="text-xs text-[#F4F1EA]/90 leading-tight">{helper.english}</span>
-                    {helper.emoji && <span className="text-lg mt-1">{helper.emoji}</span>}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
-      </div>
-
-      {activeCharIndex !== null && (
-        <div 
-          className="fixed inset-0 z-30 bg-transparent cursor-pointer" 
-          onClick={() => setActiveCharIndex(null)}
-        />
-      )}
-    </div>
-  );
-}
-
 export default function App() {
   const adaptiveSequenceRef = useRef(0);
+  const spokenClueRef = useRef<string | null>(null);
   const preloadInFlightRef = useRef(false);
   const queuedPreloadProgressRef = useRef<PlayerProgress | null>(null);
   const latestPreloadRequestRef = useRef(0);
@@ -303,6 +189,10 @@ export default function App() {
     preloadNextAdaptiveLevel(next);
   }, []);
 
+  useEffect(() => {
+    spokenClueRef.current = null;
+  }, [selectedLevel?.id]);
+
   // Save progress helper
   const updateProgress = (newProgress: PlayerProgress) => {
     setProgress(newProgress);
@@ -327,6 +217,7 @@ export default function App() {
   };
 
   const handleClueSpoken = (clue: string) => {
+    spokenClueRef.current = clue;
     const chars = Array.from(clue).filter(c => /[\u4e00-\u9fff]/.test(c));
     const merged = [...new Set([...(progress.listenedChars || []), ...chars])];
     updateProgress({ ...progress, listenedChars: merged });
@@ -367,6 +258,14 @@ export default function App() {
   ) => {
     if (!selectedLevel) return;
     const playedLevel = completedLevel || selectedLevel;
+    const heardThisAttempt = spokenClueRef.current === playedLevel.mandarinClue
+      ? new Set([
+          ...Array.from(playedLevel.mandarinClue).filter(char => /[\u4e00-\u9fff]/.test(char)),
+          ...playedLevel.nodes
+            .map(node => node.chineseChar)
+            .filter(word => playedLevel.mandarinClue.includes(word)),
+        ])
+      : new Set<string>();
 
     // Record success
     const currentCompleted = [...progress.completedLevelIds];
@@ -413,8 +312,7 @@ export default function App() {
       }
 
       // 7. Listening knowledge — only for chars the learner actually heard
-      const listened = new Set(progress.listenedChars || []);
-      if (listened.has(char)) {
+      if (heardThisAttempt.has(char)) {
         const currentListening = adaptiveModel.listeningKnowledge[char] || { success: 0, failure: 0 };
         adaptiveModel.listeningKnowledge[char] = {
           success: currentListening.success + stats.success,
@@ -481,6 +379,7 @@ export default function App() {
     };
 
     updateProgress(updated);
+    spokenClueRef.current = null;
     // Quietly refresh next rescue using latest struggle stats
     preloadNextAdaptiveLevel(updated);
   };
@@ -509,6 +408,14 @@ export default function App() {
   ) => {
     if (!selectedLevel) return;
     const playedLevel = failedLevel || selectedLevel;
+    const heardThisAttempt = spokenClueRef.current === playedLevel.mandarinClue
+      ? new Set([
+          ...Array.from(playedLevel.mandarinClue).filter(char => /[\u4e00-\u9fff]/.test(char)),
+          ...playedLevel.nodes
+            .map(node => node.chineseChar)
+            .filter(word => playedLevel.mandarinClue.includes(word)),
+        ])
+      : new Set<string>();
 
     const currentAttempts = { ...progress.vocabularyAttempts };
     
@@ -551,8 +458,7 @@ export default function App() {
         }
 
         // 7. Listening failure only if they actually heard this char
-        const listened = new Set(progress.listenedChars || []);
-        if (listened.has(char)) {
+        if (heardThisAttempt.has(char)) {
           const currentListening = adaptiveModel.listeningKnowledge[char] || { success: 0, failure: 0 };
           adaptiveModel.listeningKnowledge[char] = {
             success: currentListening.success,
@@ -609,6 +515,7 @@ export default function App() {
     };
 
     updateProgress(updated);
+    spokenClueRef.current = null;
     // After a fail, refresh the next rescue so review words stay current
     preloadNextAdaptiveLevel(updated);
   };

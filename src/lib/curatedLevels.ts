@@ -13,7 +13,7 @@ export const DEFAULT_LEVELS: Level[] = [
     id: 'lvl_1',
     title: 'Level 1: First Path',
     mandarinClue: '小狗回家',
-    pinyinClue: 'xiǎo gǒu huí jiā',
+    pinyinClue: 'xiǎogǒu huíjiā',
     englishTranslation: 'The puppy goes home',
     hint: 'Read the destination character, then inspect each junction before drawing to Home (家).',
     forceAssists: true,
@@ -57,7 +57,7 @@ export const DEFAULT_LEVELS: Level[] = [
     id: 'lvl_2',
     title: 'Level 2: Garden Choice',
     mandarinClue: '小狗回家',
-    pinyinClue: 'xiǎo gǒu huí jiā',
+    pinyinClue: 'xiǎogǒu huíjiā',
     englishTranslation: 'The puppy goes home',
     hint: 'Find the connected route to Home (家) and keep clear of Fire (火).',
     forceAssists: true,
@@ -105,8 +105,8 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_3',
     title: 'Level 3: Water First',
-    mandarinClue: '先喝水再回家',
-    pinyinClue: 'xiān hē shuǐ zài huí jiā',
+    mandarinClue: '先喝水，再回家',
+    pinyinClue: 'xiān hē shuǐ, zài huíjiā',
     englishTranslation: 'Drink water first, then go home',
     hint: '先…再… means first… then…: reach Water (水) before Home (家), avoiding Fire (火).',
     missionFraming: 'Water first, then home — the order in the clue is the order on the path.',
@@ -155,8 +155,8 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_4',
     title: 'Level 4: Meat or Grass',
-    mandarinClue: '先吃肉再回家',
-    pinyinClue: 'xiān chī ròu zài huí jiā',
+    mandarinClue: '先吃肉，再回家',
+    pinyinClue: 'xiān chī ròu, zài huíjiā',
     englishTranslation: 'Eat meat first, then go home',
     hint: 'The order is Meat (肉), then Home (家). Grass (草) is not part of the instruction.',
     missionFraming: 'Meat, not grass — only the clue’s word opens the way home.',
@@ -200,9 +200,9 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_5',
     title: 'Level 5: Safe Road',
-    mandarinClue: '避开火，走安全路',
-    pinyinClue: 'bì kāi huǒ, zǒu ān quán lù',
-    englishTranslation: 'Avoid the fire, take the safe path',
+    mandarinClue: '避开火，走安全路回家',
+    pinyinClue: 'bìkāi huǒ, zǒu ānquán lù huíjiā',
+    englishTranslation: 'Avoid the fire and take the safe path home',
     hint: '避开火 means avoid Fire (火). Find a route through Safe Road (路) to Home (家).',
     missionFraming: 'Avoid the fire wing — the safe road is the long way that still works.',
     nodes: [
@@ -237,7 +237,7 @@ export const DEFAULT_LEVELS: Level[] = [
     routeLengthLimit: 520,
     vocabularyScaffold: [
       { char: '火', pinyin: 'huǒ', english: 'Fire', emoji: '🔥', stage: 'strong' },
-      { char: '路', pinyin: 'lù', english: 'Safe road', emoji: '🛣️', stage: 'new' },
+      { char: '路', pinyin: 'lù', english: 'Road / path', emoji: '🛣️', stage: 'new' },
       { char: '家', pinyin: 'jiā', english: 'Home', emoji: '🏠', stage: 'strong' }
     ]
   },
@@ -246,10 +246,10 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_6',
     title: 'Level 6: Sequence Trial',
-    mandarinClue: '先喝水，后吃肉，再回家',
-    pinyinClue: 'xiān hē shuǐ, hòu chī ròu, zài huí jiā',
+    mandarinClue: '先喝水，再吃肉，再回家',
+    pinyinClue: 'xiān hē shuǐ, zài chī ròu, zài huíjiā',
     englishTranslation: 'Drink water first, then eat meat, then go home',
-    hint: 'Water (水) unlocks the way to Meat (肉). Avoid the Catcher (捕) corridor, then continue Home (家).',
+    hint: 'Water (水) unlocks the way to Meat (肉). Avoid the pursuer (追捕者), then continue Home (家).',
     missionFraming: 'Three stops in clue order — water unlocks the meat door.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 14, y: 90, color: 'bg-amber-500' },
@@ -276,7 +276,7 @@ export const DEFAULT_LEVELS: Level[] = [
     oneWayGates: [],
     switches: [],
     patrols: [
-      patrol('p_catcher', 'Catcher', '捕', [
+      patrol('p_catcher', 'Pursuer', '追捕者', [
         { x: 72, y: 48 },
         { x: 92, y: 48 },
         { x: 92, y: 64 },
@@ -296,15 +296,15 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_7',
     title: 'Level 7: Key & Door',
-    mandarinClue: '用钥匙开门，避开火',
-    pinyinClue: 'yòng yào shi kāi mén, bì kāi huǒ',
-    englishTranslation: 'Use the key to open the door, avoid the fire',
-    hint: 'Reach Key (钥) before the locked passage. Avoid Fire (火), Switch (开), and Catcher (捕).',
+    mandarinClue: '用钥匙开门，避开火，再回家',
+    pinyinClue: 'yòng yàoshi kāi mén, bìkāi huǒ, zài huíjiā',
+    englishTranslation: 'Use the key to open the door, avoid the fire, then go home',
+    hint: 'Reach Key (钥匙) before the locked passage. Avoid Fire (火), Switch (开关), and the pursuer.',
     missionFraming: 'Grab the key first — the tempting east wing is a trap.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 50, y: 92, color: 'bg-amber-500' },
-      { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥', x: 12, y: 48, color: 'bg-yellow-500' },
-      { id: 'n_switch', type: 'item', label: 'Switch', chineseChar: '开', x: 88, y: 55, color: 'bg-purple-500' },
+      { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥匙', x: 12, y: 48, color: 'bg-yellow-500' },
+      { id: 'n_switch', type: 'item', label: 'Switch', chineseChar: '开关', x: 88, y: 55, color: 'bg-purple-500' },
       { id: 'n_fire', type: 'hazard', label: 'Fire', chineseChar: '火', x: 88, y: 22, color: 'bg-rose-600' },
       { id: 'n_home', type: 'goal', label: 'Home', chineseChar: '家', x: 50, y: 10, color: 'bg-emerald-500' }
     ],
@@ -329,7 +329,7 @@ export const DEFAULT_LEVELS: Level[] = [
     oneWayGates: [],
     switches: [],
     patrols: [
-      patrol('p_catcher', 'Catcher', '捕', [
+      patrol('p_catcher', 'Pursuer', '追捕者', [
         { x: 68, y: 36 },
         { x: 92, y: 36 },
         { x: 92, y: 58 },
@@ -338,8 +338,8 @@ export const DEFAULT_LEVELS: Level[] = [
     ],
     routeLengthLimit: 480,
     vocabularyScaffold: [
-      { char: '钥', pinyin: 'yào', english: 'Key', emoji: '🔑', stage: 'new' },
-      { char: '开', pinyin: 'kāi', english: 'Switch / Open', emoji: '🎛️', stage: 'new' },
+      { char: '钥匙', pinyin: 'yàoshi', english: 'Key', emoji: '🔑', stage: 'new' },
+      { char: '开关', pinyin: 'kāiguān', english: 'Switch', emoji: '🎛️', stage: 'new' },
       { char: '火', pinyin: 'huǒ', english: 'Fire', emoji: '🔥', stage: 'later' }
     ]
   },
@@ -348,9 +348,9 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_8',
     title: 'Level 8: Left or Right',
-    mandarinClue: '向左走是水源，避开右边',
-    pinyinClue: 'xiàng zuǒ zǒu shì shuǐ yuán, bì kāi yòu biān',
-    englishTranslation: 'To the left is the water source, avoid the right side',
+    mandarinClue: '向左走，先喝水，再回家',
+    pinyinClue: 'xiàng zuǒ zǒu, xiān hē shuǐ, zài huíjiā',
+    englishTranslation: 'Go left, drink water first, then go home',
     hint: '向左 means go left: pass Left (左), Water (水), then Home while avoiding Right (右).',
     missionFraming: 'Left is life — the right wing looks open but ends badly.',
     nodes: [
@@ -381,7 +381,7 @@ export const DEFAULT_LEVELS: Level[] = [
     oneWayGates: [],
     switches: [],
     patrols: [
-      patrol('p_catcher', 'Catcher', '捕', [
+      patrol('p_catcher', 'Pursuer', '追捕者', [
         { x: 66, y: 30 },
         { x: 92, y: 30 },
         { x: 92, y: 50 },
@@ -400,14 +400,14 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_9',
     title: 'Level 9: One-Way Stream',
-    mandarinClue: '向下走，通过安全门',
-    pinyinClue: 'xiàng xià zǒu, tōng guò ān quán mén',
-    englishTranslation: 'Go downward, pass through the safe gate',
-    hint: '向下 means downward. Use the Down (下) gate, avoid Up (上), and watch the Technician (员).',
+    mandarinClue: '向下走，通过安全门回家',
+    pinyinClue: 'xiàng xià zǒu, tōngguò ānquánmén huíjiā',
+    englishTranslation: 'Go down and return home through the safety gate',
+    hint: '向下 means downward. Use the Down (下) gate, avoid Up (上), and watch the Technician (技术员).',
     missionFraming: 'Only the down gate lets the beagle through — up is a decoy.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 86, y: 12, color: 'bg-amber-500' },
-      { id: 'n_safe_chk', type: 'checkpoint', label: 'Gate', chineseChar: '下', x: 86, y: 48, color: 'bg-sky-500' },
+      { id: 'n_safe_chk', type: 'checkpoint', label: 'Down', chineseChar: '下', x: 86, y: 48, color: 'bg-sky-500' },
       { id: 'n_wrong_chk', type: 'item', label: 'Up', chineseChar: '上', x: 14, y: 48, color: 'bg-gray-400' },
       { id: 'n_home', type: 'goal', label: 'Home', chineseChar: '家', x: 14, y: 88, color: 'bg-emerald-500' }
     ],
@@ -429,7 +429,7 @@ export const DEFAULT_LEVELS: Level[] = [
     ],
     switches: [],
     patrols: [
-      patrol('p_tech', 'Technician', '员', [
+      patrol('p_tech', 'Technician', '技术员', [
         { x: 12, y: 34 },
         { x: 36, y: 34 },
         { x: 36, y: 62 },
@@ -448,9 +448,9 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_10',
     title: 'Level 10: Multi-Constraint',
-    mandarinClue: '先拿水和肉，再避开火回家',
-    pinyinClue: 'xiān ná shuǐ hé ròu, zài bì kāi huǒ huí jiā',
-    englishTranslation: 'Get water and meat first, then avoid fire and go home',
+    mandarinClue: '先拿水和肉，再避开火，回家',
+    pinyinClue: 'xiān ná shuǐ hé ròu, zài bìkāi huǒ, huíjiā',
+    englishTranslation: 'Get the water and meat first, then avoid the fire and go home',
     hint: 'Plan one continuous route through Water (水), Meat (肉), then Home without touching Fire (火).',
     missionFraming: 'Collect both supplies before home — fire guards the middle lanes.',
     nodes: [
@@ -485,13 +485,13 @@ export const DEFAULT_LEVELS: Level[] = [
     oneWayGates: [],
     switches: [],
     patrols: [
-      patrol('p_catcher_a', 'Catcher', '捕', [
+      patrol('p_catcher_a', 'Pursuer', '追捕者', [
         { x: 38, y: 74 },
         { x: 62, y: 74 },
         { x: 62, y: 82 },
         { x: 38, y: 82 }
       ], 36, { radius: 7, emoji: '🚨' }),
-      patrol('p_tech', 'Technician', '员', [
+      patrol('p_tech', 'Technician', '技术员', [
         { x: 38, y: 20 },
         { x: 62, y: 20 },
         { x: 62, y: 28 },
@@ -510,15 +510,15 @@ export const DEFAULT_LEVELS: Level[] = [
   // ─── L11: switch shortcut under ink pressure + catcher on long way ──────
   {
     id: 'lvl_11',
-    title: 'Level 11: Shortcut Energy',
-    mandarinClue: '走捷径，省能源回家',
-    pinyinClue: 'zǒu jié jìng, shěng néng yuán huí jiā',
-    englishTranslation: 'Take the shortcut, save energy to go home',
-    hint: 'Ink is scarce. Find Switch (开), skip the Catcher (捕) corridor, and use the opened passage to Home.',
+    title: 'Level 11: Shortcut Switch',
+    mandarinClue: '踩开关，走捷径回家',
+    pinyinClue: 'cǎi kāiguān, zǒu jiéjìng huíjiā',
+    englishTranslation: 'Step on the switch, then take the shortcut home',
+    hint: 'Ink is scarce. Find Switch (开关), skip the pursuer corridor, and use the opened passage to Home.',
     missionFraming: 'Flip the switch for the shortcut — the long way burns your ink.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 12, y: 88, color: 'bg-amber-500' },
-      { id: 'n_switch', type: 'switch', label: 'Switch', chineseChar: '开', x: 12, y: 28, color: 'bg-purple-500' },
+      { id: 'n_switch', type: 'switch', label: 'Switch', chineseChar: '开关', x: 12, y: 28, color: 'bg-purple-500' },
       { id: 'n_fire', type: 'hazard', label: 'Fire', chineseChar: '火', x: 78, y: 55, color: 'bg-rose-600' },
       { id: 'n_home', type: 'goal', label: 'Home', chineseChar: '家', x: 88, y: 88, color: 'bg-emerald-500' }
     ],
@@ -540,7 +540,7 @@ export const DEFAULT_LEVELS: Level[] = [
       { id: 'sw1', nodeId: 'n_switch', targetWallId: 'w_divider' }
     ],
     patrols: [
-      patrol('p_catcher', 'Catcher', '捕', [
+      patrol('p_catcher', 'Pursuer', '追捕者', [
         { x: 68, y: 44 },
         { x: 92, y: 44 },
         { x: 92, y: 68 },
@@ -549,7 +549,7 @@ export const DEFAULT_LEVELS: Level[] = [
     ],
     routeLengthLimit: 300,
     vocabularyScaffold: [
-      { char: '开', pinyin: 'kāi', english: 'Switch', emoji: '🎛️', stage: 'later' },
+      { char: '开关', pinyin: 'kāiguān', english: 'Switch', emoji: '🎛️', stage: 'later' },
       { char: '火', pinyin: 'huǒ', english: 'Fire', emoji: '🔥', stage: 'later' },
       { char: '家', pinyin: 'jiā', english: 'Home', emoji: '🏠', stage: 'later' }
     ]
@@ -559,15 +559,15 @@ export const DEFAULT_LEVELS: Level[] = [
   {
     id: 'lvl_12',
     title: 'Level 12: The Grand Rescue',
-    mandarinClue: '先拿钥匙，开门避开火，踩开关回家',
-    pinyinClue: 'xiān ná yào shi, kāi mén bì kāi huǒ, cǎi kāi guān huí jiā',
-    englishTranslation: 'Get key first, open door to avoid fire, then flip switch to go home',
-    hint: 'Follow the required order: Key (钥), Switch (开), then Home. Avoid Fire (火), Meat (肉), and both patrols.',
+    mandarinClue: '先拿钥匙，再开门；避开火，踩开关后回家',
+    pinyinClue: 'xiān ná yàoshi, zài kāi mén; bìkāi huǒ, cǎi kāiguān hòu huíjiā',
+    englishTranslation: 'Get the key first, then open the door; avoid the fire, step on the switch, and go home',
+    hint: 'Follow the required order: Key (钥匙), Switch (开关), then Home. Avoid Fire (火), Meat (肉), and both patrols.',
     missionFraming: 'Final lab breakout — key, switch, home. Ignore the meat bait.',
     nodes: [
       { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 12, y: 14, color: 'bg-amber-500' },
-      { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥', x: 12, y: 86, color: 'bg-yellow-500' },
-      { id: 'n_switch', type: 'switch', label: 'Switch', chineseChar: '开', x: 88, y: 86, color: 'bg-purple-500' },
+      { id: 'n_key', type: 'key', label: 'Key', chineseChar: '钥匙', x: 12, y: 86, color: 'bg-yellow-500' },
+      { id: 'n_switch', type: 'switch', label: 'Switch', chineseChar: '开关', x: 88, y: 86, color: 'bg-purple-500' },
       { id: 'n_fire', type: 'hazard', label: 'Fire', chineseChar: '火', x: 50, y: 86, color: 'bg-rose-600' },
       { id: 'n_meat', type: 'item', label: 'Meat', chineseChar: '肉', x: 50, y: 50, color: 'bg-amber-600' },
       { id: 'n_home', type: 'goal', label: 'Home', chineseChar: '家', x: 88, y: 14, color: 'bg-emerald-500' }
@@ -597,13 +597,13 @@ export const DEFAULT_LEVELS: Level[] = [
       { id: 'sw1', nodeId: 'n_switch', targetWallId: 'w_exit_block' }
     ],
     patrols: [
-      patrol('p_catcher', 'Catcher', '捕', [
+      patrol('p_catcher', 'Pursuer', '追捕者', [
         { x: 40, y: 58 },
         { x: 60, y: 58 },
         { x: 60, y: 76 },
         { x: 40, y: 76 }
       ], 32, { radius: 7, emoji: '🚨' }),
-      patrol('p_tech', 'Technician', '员', [
+      patrol('p_tech', 'Technician', '技术员', [
         { x: 58, y: 18 },
         { x: 78, y: 18 },
         { x: 78, y: 36 },
@@ -612,8 +612,8 @@ export const DEFAULT_LEVELS: Level[] = [
     ],
     routeLengthLimit: 640,
     vocabularyScaffold: [
-      { char: '钥', pinyin: 'yào', english: 'Key', emoji: '🔑', stage: 'later' },
-      { char: '开', pinyin: 'kāi', english: 'Switch', emoji: '🎛️', stage: 'later' },
+      { char: '钥匙', pinyin: 'yàoshi', english: 'Key', emoji: '🔑', stage: 'later' },
+      { char: '开关', pinyin: 'kāiguān', english: 'Switch', emoji: '🎛️', stage: 'later' },
       { char: '火', pinyin: 'huǒ', english: 'Fire', emoji: '🔥', stage: 'later' },
       { char: '肉', pinyin: 'ròu', english: 'Meat', emoji: '🥩', stage: 'later' },
       { char: '家', pinyin: 'jiā', english: 'Home', emoji: '🏠', stage: 'later' }

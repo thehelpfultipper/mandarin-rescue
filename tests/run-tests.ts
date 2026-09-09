@@ -1,11 +1,20 @@
-import { LevelSchema, PlayerProgressSchema, GeminiAdaptationResponseSchema } from '../src/types';
+import {
+  LevelSchema,
+  PlayerProgressSchema,
+  GeminiAdaptationResponseSchema,
+  REVIEWED_MANDARIN_MISSIONS,
+} from '../src/types';
 import { DEFAULT_LEVELS, DEFAULT_PROGRESS } from '../src/lib/persistence';
 import { boardGeometryKey, instantiateLevel } from '../src/lib/boardVariants';
 import { GeneratedMazeLevel, getMazeProfile } from '../src/lib/mazeGenerator';
 import { orderedContactsAlongPath, pathTouchesPoint, pathTouchesPolyline } from '../src/lib/pathGeometry';
 import { getScreenSpaceBarrierContact } from '../src/lib/mazeInteractionGeometry';
 import { adaptiveRuntimeId } from '../src/lib/adaptClient';
-import { isValidLevelResponse, parseModelJson } from '../supabase/functions/adapt/modelJson';
+import {
+  isValidLevelResponse,
+  parseModelJson,
+  REVIEWED_EDGE_MISSIONS,
+} from '../supabase/functions/adapt/modelJson';
 
 let passed = 0;
 let failed = 0;
@@ -555,6 +564,9 @@ console.log('==================================================\n');
 
 // Test 1: Curated data is the semantic contract; runtime geometry is generated below.
 runTest('Validate Curated Curriculum Semantic Contracts', () => {
+  if (DEFAULT_LEVELS.length !== 12) {
+    throw new Error(`Expected exactly 12 curated levels, received ${DEFAULT_LEVELS.length}`);
+  }
   for (const level of DEFAULT_LEVELS) {
     const result = LevelSchema.safeParse(level);
     if (!result.success) {
@@ -589,6 +601,16 @@ runTest('Validate Curated Curriculum Semantic Contracts', () => {
       throw new Error(`Level "${level.id}" clue uses 狗 but actor is ${actor.chineseChar}`);
     }
   }
+  const expectedIds = Array.from({ length: 12 }, (_, index) => `lvl_${index + 1}`);
+  if (JSON.stringify(DEFAULT_LEVELS.map(level => level.id)) !== JSON.stringify(expectedIds)) {
+    throw new Error('Curated levels must use unique contiguous IDs from lvl_1 through lvl_12');
+  }
+  if (new Set(DEFAULT_LEVELS.map(level => level.title)).size !== DEFAULT_LEVELS.length) {
+    throw new Error('Curated level titles must be unique');
+  }
+  if (JSON.stringify(REVIEWED_MANDARIN_MISSIONS) !== JSON.stringify(REVIEWED_EDGE_MISSIONS)) {
+    throw new Error('Client and production-edge reviewed Mandarin missions have drifted');
+  }
 });
 
 // Test 2: Validate DEFAULT_PROGRESS structure
@@ -606,8 +628,8 @@ runTest('Validate Mock Gemini Level Adaptation Output Schema', () => {
       learningGoal: "Guide the bird to the worm, avoiding the spider",
       grammarTarget: "Action sequence",
       scaffolding: [
-        { char: '鸟', pinyin: 'niǎo', english: 'Bird', emoji: '🐦', stage: 'new' },
-        { char: '虫', pinyin: 'chóng', english: 'Worm', emoji: '🐛', stage: 'new' }
+        { char: '肉', pinyin: 'ròu', english: 'Meat', emoji: '🥩', stage: 'new' },
+        { char: '家', pinyin: 'jiā', english: 'Home', emoji: '🏠', stage: 'new' }
       ],
       puzzleTemplate: "hazard-avoidance",
       constraints: ["Avoid spider hazard"],
@@ -618,20 +640,21 @@ runTest('Validate Mock Gemini Level Adaptation Output Schema', () => {
     suggestedLevel: {
       id: 'lvl_gemini_test',
       title: 'Milestone 4: Adaptive Forest',
-      mandarinClue: '鸟吃虫',
-      pinyinClue: 'niǎo chī chóng',
-      englishTranslation: 'The bird eats the worm',
-      hint: 'Guide the bird to the worm, avoid the spider!',
+      mandarinClue: '先吃肉，再回家',
+      pinyinClue: 'xiān chī ròu, zài huíjiā',
+      englishTranslation: 'Eat meat first, then go home',
+      hint: 'Eat Meat (肉) before returning Home (家). Avoid Grass (草).',
       nodes: [
-        { id: 'n_actor', type: 'actor', label: 'Bird', chineseChar: '鸟', x: 25, y: 30 },
-        { id: 'n_worm', type: 'goal', label: 'Worm', chineseChar: '虫', x: 75, y: 65 },
-        { id: 'n_spider', type: 'hazard', label: 'Spider', chineseChar: '蛛', x: 50, y: 50 }
+        { id: 'n_actor', type: 'actor', label: 'Dog', chineseChar: '狗', x: 25, y: 30 },
+        { id: 'n_meat', type: 'checkpoint', label: 'Meat', chineseChar: '肉', x: 50, y: 65 },
+        { id: 'n_grass', type: 'hazard', label: 'Grass', chineseChar: '草', x: 75, y: 30 },
+        { id: 'n_home', type: 'goal', label: 'Home', chineseChar: '家', x: 75, y: 65 }
       ],
-      requiredNodeIds: ['n_actor', 'n_worm'],
-      forbiddenNodeIds: ['n_spider'],
+      requiredNodeIds: ['n_actor', 'n_meat', 'n_home'],
+      forbiddenNodeIds: ['n_grass'],
       vocabularyScaffold: [
-        { char: '鸟', pinyin: 'niǎo', english: 'Bird', emoji: '🐦', stage: 'new' as const },
-        { char: '虫', pinyin: 'chóng', english: 'Worm', emoji: '🐛', stage: 'new' as const }
+        { char: '肉', pinyin: 'ròu', english: 'Meat', emoji: '🥩', stage: 'new' as const },
+        { char: '家', pinyin: 'jiā', english: 'Home', emoji: '🏠', stage: 'new' as const }
       ]
     },
     rationale: 'Reviewing avian vocabulary after the player completed pet milestones.'
@@ -680,15 +703,27 @@ runTest('Validate Repeated Adaptive Source IDs Receive Unique Runtime IDs', () =
 runTest('Validate Adaptive Levels Enforce Semantic Contracts', () => {
   const valid = structuredClone(DEFAULT_LEVELS[0]);
   const sequential = structuredClone(DEFAULT_LEVELS.find(level => level.id === 'lvl_3')!);
+  const curatedSpatial = structuredClone(DEFAULT_LEVELS.find(level => level.id === 'lvl_8')!);
   const sequentialActor = sequential.nodes.find(node => node.type === 'actor')!;
   const sequentialGoal = sequential.nodes.find(node => node.type === 'goal')!;
   if (!LevelSchema.safeParse(valid).success || !isValidLevelResponse({ suggestedLevel: valid })) {
     throw new Error('A valid curated level was rejected by an adaptive contract');
   }
+  if (!LevelSchema.safeParse(curatedSpatial).success || isValidLevelResponse({ suggestedLevel: curatedSpatial })) {
+    throw new Error('Curated spatial missions must remain valid but unavailable to adaptive regeneration');
+  }
 
   const invalidLevels = [
     { ...structuredClone(valid), requiredNodeIds: [...valid.requiredNodeIds].reverse() },
     { ...structuredClone(valid), forbiddenNodeIds: [] },
+    { ...structuredClone(valid), pinyinClue: 'incorrect pinyin' },
+    { ...structuredClone(valid), englishTranslation: 'Incorrect translation' },
+    {
+      ...structuredClone(valid),
+      vocabularyScaffold: valid.vocabularyScaffold?.map((item, index) =>
+        index === 0 ? { ...item, english: 'Incorrect meaning' } : item
+      ),
+    },
     {
       ...structuredClone(valid),
       nodes: valid.nodes.map((node, index) => index === 1 ? { ...node, id: valid.nodes[0].id } : node),
@@ -709,7 +744,7 @@ runTest('Validate Adaptive Levels Enforce Semantic Contracts', () => {
     {
       ...sequential,
       nodes: sequential.nodes.map(node => node.chineseChar === '水' ? { ...node, type: 'item' as const } : node),
-      requiredNodeIds: [sequentialActor.id, sequentialGoal.id],
+      requiredNodeIds: sequential.requiredNodeIds,
     },
     {
       ...sequential,

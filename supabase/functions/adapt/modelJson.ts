@@ -245,9 +245,107 @@ export const MODEL_RESPONSE_JSON_SCHEMA = {
   },
 } as const;
 
-const ALLOWED_CLUE_HANZI = new Set(Array.from(
-  "小狗猫兔鸟回家先喝水再吃肉草避开走安全路后用钥匙门向左右下上通过和捷径省能机关火去拿踩"
-));
+export const REVIEWED_EDGE_MISSIONS = {
+  "小狗回家": {
+    adaptiveEligible: true,
+    pinyin: "xiǎogǒu huíjiā",
+    english: "The puppy goes home",
+    requiredConcepts: ["家"],
+    forbiddenConcepts: [],
+  },
+  "小狗避开火，回家": {
+    adaptiveEligible: true,
+    pinyin: "xiǎogǒu bìkāi huǒ, huíjiā",
+    english: "The puppy avoids the fire and goes home",
+    requiredConcepts: ["家"],
+    forbiddenConcepts: ["火"],
+  },
+  "先喝水，再回家": {
+    adaptiveEligible: true,
+    pinyin: "xiān hē shuǐ, zài huíjiā",
+    english: "Drink water first, then go home",
+    requiredConcepts: ["水", "家"],
+    forbiddenConcepts: [],
+  },
+  "先吃肉，再回家": {
+    adaptiveEligible: true,
+    pinyin: "xiān chī ròu, zài huíjiā",
+    english: "Eat meat first, then go home",
+    requiredConcepts: ["肉", "家"],
+    forbiddenConcepts: [],
+  },
+  "避开火，走安全路回家": {
+    adaptiveEligible: true,
+    pinyin: "bìkāi huǒ, zǒu ānquán lù huíjiā",
+    english: "Avoid the fire and take the safe path home",
+    requiredConcepts: ["路", "家"],
+    forbiddenConcepts: ["火"],
+  },
+  "先喝水，再吃肉，再回家": {
+    adaptiveEligible: true,
+    pinyin: "xiān hē shuǐ, zài chī ròu, zài huíjiā",
+    english: "Drink water first, then eat meat, then go home",
+    requiredConcepts: ["水", "肉", "家"],
+    forbiddenConcepts: [],
+  },
+  "用钥匙开门，避开火，再回家": {
+    adaptiveEligible: true,
+    pinyin: "yòng yàoshi kāi mén, bìkāi huǒ, zài huíjiā",
+    english: "Use the key to open the door, avoid the fire, then go home",
+    requiredConcepts: ["钥匙", "家"],
+    forbiddenConcepts: ["火"],
+  },
+  "向左走，先喝水，再回家": {
+    adaptiveEligible: false,
+    pinyin: "xiàng zuǒ zǒu, xiān hē shuǐ, zài huíjiā",
+    english: "Go left, drink water first, then go home",
+    requiredConcepts: ["左", "水", "家"],
+    forbiddenConcepts: [],
+  },
+  "向下走，通过安全门回家": {
+    adaptiveEligible: false,
+    pinyin: "xiàng xià zǒu, tōngguò ānquánmén huíjiā",
+    english: "Go down and return home through the safety gate",
+    requiredConcepts: ["下", "家"],
+    forbiddenConcepts: [],
+  },
+  "先拿水和肉，再避开火，回家": {
+    adaptiveEligible: true,
+    pinyin: "xiān ná shuǐ hé ròu, zài bìkāi huǒ, huíjiā",
+    english: "Get the water and meat first, then avoid the fire and go home",
+    requiredConcepts: ["水", "肉", "家"],
+    forbiddenConcepts: ["火"],
+  },
+  "踩开关，走捷径回家": {
+    adaptiveEligible: true,
+    pinyin: "cǎi kāiguān, zǒu jiéjìng huíjiā",
+    english: "Step on the switch, then take the shortcut home",
+    requiredConcepts: ["开关", "家"],
+    forbiddenConcepts: [],
+  },
+  "先拿钥匙，再开门；避开火，踩开关后回家": {
+    adaptiveEligible: true,
+    pinyin: "xiān ná yàoshi, zài kāi mén; bìkāi huǒ, cǎi kāiguān hòu huíjiā",
+    english: "Get the key first, then open the door; avoid the fire, step on the switch, and go home",
+    requiredConcepts: ["钥匙", "开关", "家"],
+    forbiddenConcepts: ["火"],
+  },
+} as const;
+export const REVIEWED_EDGE_NODE_VOCABULARY: Record<string, { pinyin: string; english: string }> = {
+  "狗": { pinyin: "gǒu", english: "Dog" },
+  "家": { pinyin: "jiā", english: "Home" },
+  "草": { pinyin: "cǎo", english: "Grass" },
+  "火": { pinyin: "huǒ", english: "Fire" },
+  "水": { pinyin: "shuǐ", english: "Water" },
+  "肉": { pinyin: "ròu", english: "Meat" },
+  "路": { pinyin: "lù", english: "Road / path" },
+  "钥匙": { pinyin: "yàoshi", english: "Key" },
+  "开关": { pinyin: "kāiguān", english: "Switch" },
+  "左": { pinyin: "zuǒ", english: "Left" },
+  "右": { pinyin: "yòu", english: "Right" },
+  "下": { pinyin: "xià", english: "Down" },
+  "上": { pinyin: "shàng", english: "Up" },
+};
 const NODE_TYPES = new Set(["actor", "item", "obstacle", "goal", "checkpoint", "hazard", "key", "switch"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -283,14 +381,21 @@ export function isValidLevelResponse(data: unknown): boolean {
     !Array.isArray(level.requiredNodeIds) ||
     level.requiredNodeIds.length < 2 ||
     !Array.isArray(level.forbiddenNodeIds) ||
-    level.forbiddenNodeIds.length < 1
+    level.forbiddenNodeIds.length < 1 ||
+    !Array.isArray(level.vocabularyScaffold)
   ) {
     return false;
   }
 
-  for (const char of Array.from(level.mandarinClue)) {
-    if (/[\u4e00-\u9fff]/u.test(char) && !ALLOWED_CLUE_HANZI.has(char)) return false;
-  }
+  const mission = REVIEWED_EDGE_MISSIONS[
+    level.mandarinClue as keyof typeof REVIEWED_EDGE_MISSIONS
+  ];
+  if (
+    !mission ||
+    !mission.adaptiveEligible ||
+    level.pinyinClue !== mission.pinyin ||
+    level.englishTranslation !== mission.english
+  ) return false;
 
   const nodes = level.nodes;
   if (!nodes.every(node =>
@@ -322,23 +427,30 @@ export function isValidLevelResponse(data: unknown): boolean {
     !forbiddenIds.every(id => typeof id === "string" && nodeIdSet.has(id) && !requiredIds.includes(id)) ||
     new Set(forbiddenIds).size !== forbiddenIds.length
   ) return false;
-  for (const concept of ["水", "肉", "钥"]) {
-    if (!(level.mandarinClue as string).includes(concept)) continue;
-    const matchingNodes = nodeRecords.filter(node => node.chineseChar === concept);
-    if (matchingNodes.length === 0) return false;
-    const isAvoided = new RegExp(`避开[^，。！？,.!?；;：:]{0,4}${concept}`).test(level.mandarinClue as string);
-    const expectedIds = isAvoided ? forbiddenIds : requiredIds;
-    if (!matchingNodes.some(node => expectedIds.includes(node.id))) return false;
+  for (const concept of mission.requiredConcepts) {
+    if (!nodeRecords.some(node => node.chineseChar === concept && requiredIds.includes(node.id))) {
+      return false;
+    }
   }
-  if (nodeRecords.some(node => {
-    const clueRequiredType =
-      node.type === "checkpoint" ||
-      node.type === "key" ||
-      node.type === "switch";
-    return clueRequiredType &&
-      typeof node.chineseChar === "string" &&
-      (level.mandarinClue as string).includes(node.chineseChar) &&
-      !requiredIds.includes(node.id);
+  for (const concept of mission.forbiddenConcepts) {
+    if (!nodeRecords.some(node => node.chineseChar === concept && forbiddenIds.includes(node.id))) {
+      return false;
+    }
+  }
+  const enforcedIntermediateTypes = new Set(["checkpoint", "key", "switch"]);
+  if (requiredIds.slice(1, -1).some(id => {
+    const node = nodeRecords.find(candidate => candidate.id === id);
+    return !node ||
+      !enforcedIntermediateTypes.has(node.type as string) ||
+      !(mission.requiredConcepts as readonly string[]).includes(node.chineseChar as string);
+  })) return false;
+  if (!level.vocabularyScaffold.every(item => {
+    if (!isRecord(item) || typeof item.char !== "string") return false;
+    const reviewed = REVIEWED_EDGE_NODE_VOCABULARY[item.char];
+    return reviewed &&
+      item.pinyin === reviewed.pinyin &&
+      item.english === reviewed.english &&
+      nodeRecords.some(node => node.chineseChar === item.char);
   })) return false;
 
   const walls = Array.isArray(level.walls) ? level.walls : [];
