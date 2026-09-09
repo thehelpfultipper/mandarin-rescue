@@ -155,7 +155,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
       <div
         className="flex flex-wrap justify-center items-center gap-x-0 gap-y-0.5 px-2 py-0.5 text-center"
         role="group"
-        aria-label="Mandarin clue. Tap a character for pinyin and meaning."
+        aria-label="Mandarin clue. Tap a word for pinyin and meaning."
       >
         {tokens.map((token, index) => {
           if (CLUE_PUNCT.test(token)) {
@@ -207,7 +207,7 @@ function InteractiveClue({ clue, scaffold, showCoachHint = true }: InteractiveCl
 
       {showCoachHint && (
         <p className="text-[11px] text-stone-300 text-center leading-snug px-2 pt-0.5 pb-0.5">
-          Tap a character for meaning
+          Tap a word for meaning
         </p>
       )}
 

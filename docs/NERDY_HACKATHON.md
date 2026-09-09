@@ -57,7 +57,7 @@ Looking for:
 Film on a **phone in portrait** (installed PWA optional). Speak casually; never say “Duolingo” or show a slide deck.
 
 1. **Hook (10–15s)** — “Mandarin clues feel abstract until they become a path you draw.” Open the live URL; app lands on Room 1 with the draw coach.
-2. **Fun (45–60s)** — Show clue 小狗回家, tap 家 for scaffold, draw a successful path, beagle trots home (“Beagle home!”). Optional: mute to prove silent-first.
+2. **Fun (45–60s)** — Show clue 小狗回家, tap 回家 for the word scaffold, draw a successful path, beagle trots home (“Beagle home!”). Optional: mute to prove silent-first.
 3. **Teaches (45–60s)** — Intentionally route to a distractor (草 / 火) or wrong order on L3/L4. Call out the **Wrong reading** banner naming the character. Retry — board reshuffles.
 4. **Adaptive (20–30s)** — Map → note rescues done + “revisits …” if due → Practice another rescue. Voiceover: “Gemini tunes the next mission from struggle logs when online; curated rooms work offline.”
 5. **Close (15s)** — “Game first. Language is the win condition.” Live URL + repo.

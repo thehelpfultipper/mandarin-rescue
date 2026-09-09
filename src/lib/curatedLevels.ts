@@ -15,7 +15,7 @@ export const DEFAULT_LEVELS: Level[] = [
     mandarinClue: '小狗回家',
     pinyinClue: 'xiǎogǒu huíjiā',
     englishTranslation: 'The puppy goes home',
-    hint: 'Read the destination character, then inspect each junction before drawing to Home (家).',
+    hint: 'Read the destination word, then inspect each junction before drawing to Home (家).',
     forceAssists: true,
     missionFraming: 'Guide the beagle home — read 家, then draw the safe corridor.',
     nodes: [

@@ -12,7 +12,7 @@
 * **Commanding the Objective:** The Mandarin prompt is the exclusive indicator of the target item/destination.
   * *Example:* Clue says `先吃肉再回家`. The level contains both 肉 and 草. Routing to 草 fails; routing 肉 → 家 in order succeeds.
 * **No "Translation Questions":** The player is never asked "What does 肉 mean?". Fulfilling the action in-game *is* the translation check.
-* **Assists:** Pinyin and English can be toggled in Settings. Intro rooms force assists. Tap characters on the clue for a popover. Hint is available on demand via the help icon.
+* **Assists:** Pinyin and English can be toggled in Settings. Intro rooms force assists. Tap a word/unit on the clue for a popover (compounds stay grouped). Hint is available on demand via the help icon.
 
 ---
 

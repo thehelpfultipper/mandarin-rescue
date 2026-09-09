@@ -15,7 +15,7 @@ Unlike typical educational software, Mandarin Rescue is a *game first*. It rejec
 
 ## 3. Pedagogical Journey
 * **Intro ramp:** Early rooms force assists (pinyin + English) and teach drawing + first characters (狗 / 家) with a physically accessible distractor.
-* **Teach-in-play:** Tap any character in the clue for pinyin/meaning. Hints are on-demand, not always on screen.
+* **Teach-in-play:** Tap a word/unit in the clue for pinyin/meaning (compounds like 回家, 钥匙 stay grouped). Hints are on-demand, not always on screen.
 * **Review in play:** Struggle and retention logs quietly shape the *next* rescue — no streak/XP dark patterns, no fake spaced-repetition scoreboard.
 * **Silent-first:** Every curated level works muted. Listening mastery only updates when audio was actually spoken.
 
