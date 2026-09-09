@@ -33,6 +33,218 @@ export function parseModelJson(text: string): unknown {
   }
 }
 
+/**
+ * Sent to Gemini as responseJsonSchema. JSON mode alone asks for JSON but does
+ * not guarantee that a complex response is syntactically complete.
+ */
+export const MODEL_RESPONSE_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    levelPlan: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        learningGoal: { type: "string" },
+        grammarTarget: { type: "string" },
+        scaffolding: {
+          type: "array",
+          minItems: 1,
+          maxItems: 6,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              char: { type: "string" },
+              pinyin: { type: "string" },
+              english: { type: "string" },
+              emoji: { type: "string" },
+              stage: { type: "string", enum: ["new", "familiar", "strong", "later"] },
+            },
+            required: ["char", "pinyin", "english", "emoji", "stage"],
+          },
+        },
+        puzzleTemplate: {
+          type: "string",
+          enum: ["required-checkpoints", "key-door", "switch-wall", "hazard-avoidance", "one-way-gate"],
+        },
+        constraints: {
+          type: "array",
+          minItems: 1,
+          maxItems: 4,
+          items: { type: "string" },
+        },
+        plausibleRouteCount: { type: "integer", minimum: 1, maximum: 3 },
+        puzzleDifficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+        whyMandarinMatters: { type: "string" },
+      },
+      required: [
+        "learningGoal",
+        "grammarTarget",
+        "scaffolding",
+        "puzzleTemplate",
+        "constraints",
+        "plausibleRouteCount",
+        "puzzleDifficulty",
+        "whyMandarinMatters",
+      ],
+    },
+    suggestedLevel: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        id: { type: "string" },
+        title: { type: "string" },
+        mandarinClue: { type: "string" },
+        pinyinClue: { type: "string" },
+        englishTranslation: { type: "string" },
+        hint: { type: "string" },
+        isAudioRequired: { type: "boolean" },
+        nodes: {
+          type: "array",
+          minItems: 3,
+          maxItems: 6,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: { type: "string" },
+              type: {
+                type: "string",
+                enum: ["actor", "item", "obstacle", "goal", "checkpoint", "hazard", "key", "switch"],
+              },
+              label: { type: "string" },
+              chineseChar: { type: "string" },
+              x: { type: "integer", minimum: 15, maximum: 85 },
+              y: { type: "integer", minimum: 15, maximum: 85 },
+            },
+            required: ["id", "type", "label", "chineseChar", "x", "y"],
+          },
+        },
+        requiredNodeIds: {
+          type: "array",
+          minItems: 2,
+          maxItems: 5,
+          items: { type: "string" },
+        },
+        forbiddenNodeIds: {
+          type: "array",
+          minItems: 1,
+          maxItems: 4,
+          items: { type: "string" },
+        },
+        walls: {
+          type: "array",
+          maxItems: 6,
+          items: { $ref: "#/$defs/barrier" },
+        },
+        lockedDoors: {
+          type: "array",
+          maxItems: 2,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: { type: "string" },
+              x1: { type: "integer", minimum: 0, maximum: 100 },
+              y1: { type: "integer", minimum: 0, maximum: 100 },
+              x2: { type: "integer", minimum: 0, maximum: 100 },
+              y2: { type: "integer", minimum: 0, maximum: 100 },
+              keyNodeId: { type: "string" },
+            },
+            required: ["id", "x1", "y1", "x2", "y2", "keyNodeId"],
+          },
+        },
+        oneWayGates: {
+          type: "array",
+          maxItems: 2,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: { type: "string" },
+              x1: { type: "integer", minimum: 0, maximum: 100 },
+              y1: { type: "integer", minimum: 0, maximum: 100 },
+              x2: { type: "integer", minimum: 0, maximum: 100 },
+              y2: { type: "integer", minimum: 0, maximum: 100 },
+              allowDirection: { type: "string", enum: ["up", "down", "left", "right"] },
+            },
+            required: ["id", "x1", "y1", "x2", "y2", "allowDirection"],
+          },
+        },
+        switches: {
+          type: "array",
+          maxItems: 2,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: { type: "string" },
+              nodeId: { type: "string" },
+              targetWallId: { type: "string" },
+            },
+            required: ["id", "nodeId", "targetWallId"],
+          },
+        },
+        routeLengthLimit: { type: "integer", minimum: 1 },
+        vocabularyScaffold: {
+          type: "array",
+          minItems: 1,
+          maxItems: 6,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              char: { type: "string" },
+              pinyin: { type: "string" },
+              english: { type: "string" },
+              emoji: { type: "string" },
+              stage: { type: "string", enum: ["new", "familiar", "strong", "later"] },
+            },
+            required: ["char", "pinyin", "english", "emoji", "stage"],
+          },
+        },
+        missionFraming: { type: "string" },
+      },
+      required: [
+        "id",
+        "title",
+        "mandarinClue",
+        "pinyinClue",
+        "englishTranslation",
+        "hint",
+        "isAudioRequired",
+        "nodes",
+        "requiredNodeIds",
+        "forbiddenNodeIds",
+        "walls",
+        "lockedDoors",
+        "oneWayGates",
+        "switches",
+        "routeLengthLimit",
+        "vocabularyScaffold",
+        "missionFraming",
+      ],
+    },
+    rationale: { type: "string" },
+  },
+  required: ["levelPlan", "suggestedLevel", "rationale"],
+  $defs: {
+    barrier: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        id: { type: "string" },
+        x1: { type: "integer", minimum: 0, maximum: 100 },
+        y1: { type: "integer", minimum: 0, maximum: 100 },
+        x2: { type: "integer", minimum: 0, maximum: 100 },
+        y2: { type: "integer", minimum: 0, maximum: 100 },
+      },
+      required: ["id", "x1", "y1", "x2", "y2"],
+    },
+  },
+} as const;
+
 const ALLOWED_CLUE_HANZI = new Set(Array.from(
   "小狗猫兔鸟回家先喝水再吃肉草避开走安全路后用钥匙门向左右下上通过和捷径省能机关火去拿踩"
 ));

@@ -14,7 +14,11 @@
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { isValidLevelResponse, parseModelJson } from "./modelJson.ts";
+import {
+  isValidLevelResponse,
+  MODEL_RESPONSE_JSON_SCHEMA,
+  parseModelJson,
+} from "./modelJson.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -208,6 +212,7 @@ function buildFocus(body: AdaptBody): string {
 async function callGemini(body: AdaptBody, apiKey: string): Promise<unknown | null> {
   // Free-tier (unbilled) order: Lite first, then mid Flash. Keep in sync with server.ts.
   const models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.5-flash"];
+  const requestTimeoutMs = 35_000;
   const prompt = `You are the Pedagogical Game Director for Mandarin Rescue, a touch-drawing beagle-rescue puzzle.
 Return ONLY JSON with keys: levelPlan, suggestedLevel, rationale.
 
@@ -234,12 +239,16 @@ Rules for suggestedLevel:
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(requestTimeoutMs),
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0.7,
+            responseJsonSchema: MODEL_RESPONSE_JSON_SCHEMA,
+            maxOutputTokens: 8192,
+            thinkingConfig: {
+              thinkingLevel: "LOW",
+            },
           },
         }),
       });
@@ -248,9 +257,28 @@ Rules for suggestedLevel:
         continue;
       }
       const payload = await res.json();
-      const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const candidate = payload?.candidates?.[0];
+      if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+        console.info(`Gemini ${model} returned finishReason=${candidate.finishReason}; trying next model`);
+        continue;
+      }
+      const text = candidate?.content?.parts
+        ?.filter((part: { thought?: boolean }) => !part.thought)
+        .map((part: { text?: unknown }) => typeof part.text === "string" ? part.text : "")
+        .join("");
       if (!text || typeof text !== "string") continue;
-      const parsed = parseModelJson(text) as Record<string, any>;
+      let parsed: Record<string, any>;
+      try {
+        parsed = parseModelJson(text) as Record<string, any>;
+      } catch {
+        // A schema-constrained response should parse. If the provider still
+        // returns malformed text, fail over without logging a noisy stack.
+        console.info(`Gemini ${model} returned malformed structured JSON; trying next model`);
+        continue;
+      }
+      if (!parsed?.suggestedLevel || typeof parsed.suggestedLevel !== "object") {
+        continue;
+      }
       if (body.silentPlay && parsed?.suggestedLevel) {
         parsed.suggestedLevel.isAudioRequired = false;
       }
@@ -264,7 +292,11 @@ Rules for suggestedLevel:
       }
       if (isValidLevelResponse(parsed)) return parsed;
     } catch (err) {
-      console.warn(`Gemini ${model} failed:`, err);
+      if (err instanceof DOMException && err.name === "TimeoutError") {
+        console.info(`Gemini ${model} exceeded ${requestTimeoutMs / 1000}s; trying next model`);
+      } else {
+        console.warn(`Gemini ${model} request failed:`, err);
+      }
     }
   }
   return null;
