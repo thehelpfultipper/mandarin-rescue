@@ -496,6 +496,60 @@ function independentShortestRequiredSteps(board: GeneratedMazeLevel): number {
   return total;
 }
 
+/**
+ * Intermediate required stops must not be cut-vertices on every actor→home route,
+ * including routes that avoid forbidden landmarks. Otherwise 先…再… "home first"
+ * only fails as wrong_target and order teaching collapses.
+ */
+function verifyOrderCheckpointsSkippable(board: GeneratedMazeLevel): { ok: boolean; reason?: string } {
+  if (board.requiredNodeIds.length < 3) return { ok: true };
+  const graph = new Map<string, string[]>();
+  for (const edge of board.mazeMetadata.connections) {
+    const [a, b] = edge.split('|');
+    graph.set(a, [...(graph.get(a) || []), b]);
+    graph.set(b, [...(graph.get(b) || []), a]);
+  }
+  const step = 88 / board.mazeMetadata.size;
+  const nodeCell = (nodeId: string): string => {
+    const node = board.nodes.find(candidate => candidate.id === nodeId);
+    if (!node) throw new Error(`Missing node "${nodeId}" in order-skip check`);
+    const row = Math.max(0, Math.min(board.mazeMetadata.size - 1, Math.floor((node.y - 6) / step)));
+    const col = Math.max(0, Math.min(board.mazeMetadata.size - 1, Math.floor((node.x - 6) / step)));
+    return `${row},${col}`;
+  };
+  const actor = nodeCell(board.requiredNodeIds[0]);
+  const home = nodeCell(board.requiredNodeIds[board.requiredNodeIds.length - 1]);
+  const forbidden = new Set(board.forbiddenNodeIds.map(nodeCell));
+  for (const id of board.requiredNodeIds.slice(1, -1)) {
+    const blocked = new Set(forbidden);
+    blocked.add(nodeCell(id));
+    blocked.delete(actor);
+    blocked.delete(home);
+    const queue = [actor];
+    const visited = new Set([actor]);
+    let reachable = false;
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const current = queue[cursor];
+      if (current === home) {
+        reachable = true;
+        break;
+      }
+      for (const next of graph.get(current) || []) {
+        if (visited.has(next) || blocked.has(next)) continue;
+        visited.add(next);
+        queue.push(next);
+      }
+    }
+    if (!reachable) {
+      return {
+        ok: false,
+        reason: `"${id}" cannot be skipped cleanly — every home route hits it or a forbidden landmark`
+      };
+    }
+  }
+  return { ok: true };
+}
+
 function verifyDistractorPressure(board: GeneratedMazeLevel): { ok: boolean; reason?: string } {
   const expected = board.nodes.filter(node => !board.requiredNodeIds.includes(node.id));
   const placements = board.mazeMetadata.distractors;
@@ -956,6 +1010,10 @@ runTest('Validate Generated Maze Topology, Difficulty, and Replay Variety', () =
       const clearance = verifyTrueRouteHazardClearance(board);
       if (!clearance.ok) {
         throw new Error(`Variant of "${template.id}" seed=${seed}: ${clearance.reason}`);
+      }
+      const orderSkip = verifyOrderCheckpointsSkippable(board);
+      if (!orderSkip.ok) {
+        throw new Error(`Variant of "${template.id}" seed=${seed}: ${orderSkip.reason}`);
       }
       // Linguistic contract must not drift
       if (board.mandarinClue !== template.mandarinClue) {

@@ -11,15 +11,18 @@ When editing maze generation, board variants, curated levels, or draw/collision 
 ## Required standard
 Hazards and avoid-targets must sit on **competing decoy corridors** — simple alternate paths that still reach the next required node (or L11’s long-way vs shortcut). Players must be able to *draw a plausible wrong solution* that hits them.
 
+For multi-stop (先…再…) rooms, each intermediate required stop must also be **skippable on a clean route**: home must remain reachable on some actor→home path that never visits that stop *and* never hits a forbidden landmark, so wrong order is a drawable language failure — not a cut-vertex (or a grass/fire-only detour) that forces the checkpoint.
+
 ## Do not regress to
 - Depth-1/2 cul-de-sac stubs that only “point toward” the goal
 - Late / remote branches after the journey midpoint
 - Reachable-but-ignored pockets (decorators)
-- Weakening `onCompetingPath`, corridor-length, drawable-solvability, or straight-line hard gates in `mazeGenerator.ts` just to raise generate success rate
+- Intermediate checkpoints that cut every path home (order teaching collapses)
+- Weakening `onCompetingPath`, corridor-length, drawable-solvability, order-skip, or straight-line hard gates in `mazeGenerator.ts` just to raise generate success rate
 
 ## Before finishing
 1. Keep generator hard gates intact (or strengthen them).
 2. Run `node --import tsx tests/run-tests.ts`.
-3. Prefer also `node --import tsx tests/audit-hazards.ts` (expects competing-path rate 1.0 across seeds).
+3. Prefer also `node --import tsx tests/audit-hazards.ts` (expects competing-path rate 1.0 across seeds) and `node --import tsx tests/audit-order-topology.ts` for multi-stop rooms.
 
 **Smell test:** Would a player following a convincing path to the next Mandarin target hit this hazard? If no, fix placement — do not add more stubs.

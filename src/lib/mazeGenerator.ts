@@ -463,6 +463,119 @@ function ensureCompetingCorridors(
   return carved;
 }
 
+/**
+ * True when actor can still reach home if `checkpoint` (and optional forbidden cells)
+ * are removed from the graph. Order missions (先…再…) need a *clean* skip route so
+ * "go home first" fails as wrong_order — not only via a path that also hits 草/火.
+ */
+function canReachWhileSkipping(
+  graph: Map<string, Cell[]>,
+  actor: Cell,
+  home: Cell,
+  checkpoint: Cell,
+  alsoBlocked: Set<string> = new Set()
+): boolean {
+  const blocked = new Set(alsoBlocked);
+  blocked.add(key(checkpoint));
+  blocked.delete(key(actor));
+  blocked.delete(key(home));
+  return Number.isFinite(shortestAllowedSteps(graph, actor, home, blocked));
+}
+
+/**
+ * Carve detours that bypass each intermediate required stop so home remains
+ * reachable without visiting that stop. Competing stage corridors alone do not
+ * guarantee this — they reconnect toward the next checkpoint, not around it.
+ */
+function ensureOrderSkipBypasses(
+  size: number,
+  edges: Set<string>,
+  route: Cell[],
+  requiredCells: Cell[],
+  rng: () => number
+): number {
+  if (requiredCells.length < 3) return 0;
+  const actor = requiredCells[0];
+  const home = requiredCells[requiredCells.length - 1];
+  const routeIndex = new Map(route.map((cell, index) => [key(cell), index]));
+  let carved = 0;
+
+  for (let i = 1; i < requiredCells.length - 1; i++) {
+    const checkpoint = requiredCells[i];
+    const cpIdx = routeIndex.get(key(checkpoint));
+    if (cpIdx == null || cpIdx < 2 || cpIdx > route.length - 3) continue;
+
+    let graph = adjacency(size, edges);
+    if (canReachWhileSkipping(graph, actor, home, checkpoint)) continue;
+
+    const blockedCheckpoint = key(checkpoint);
+    for (let attempt = 0; attempt < 36; attempt++) {
+      const beforeSpan = Math.max(1, Math.floor(cpIdx * 0.45));
+      const afterSpan = Math.max(1, Math.floor((route.length - 1 - cpIdx) * 0.45));
+      const diverge = Math.max(1, cpIdx - 1 - Math.floor(rng() * beforeSpan));
+      const rejoin = Math.min(route.length - 2, cpIdx + 1 + Math.floor(rng() * afterSpan));
+      if (rejoin - diverge < 3) continue;
+
+      const start = route[diverge];
+      const end = route[rejoin];
+      const queue = [start];
+      const parents = new Map<string, string | null>([[key(start), null]]);
+      for (let cursor = 0; cursor < queue.length; cursor++) {
+        const current = queue[cursor];
+        if (key(current) === key(end)) break;
+        for (const next of shuffle(neighbors(current, size), rng)) {
+          const token = key(next);
+          if (parents.has(token) || token === blockedCheckpoint) continue;
+          parents.set(token, key(current));
+          queue.push(next);
+        }
+      }
+      if (!parents.has(key(end))) continue;
+
+      const path: Cell[] = [];
+      let walk: string | null = key(end);
+      while (walk) {
+        path.push(parseKey(walk));
+        walk = parents.get(walk) ?? null;
+      }
+      path.reverse();
+      if (path.some(cell => key(cell) === blockedCheckpoint)) continue;
+      const offRoute = path.filter(cell => !route.some(r => key(r) === key(cell)));
+      if (offRoute.length < 2) continue;
+      if (path.length - 1 < 4) continue;
+
+      for (let step = 1; step < path.length; step++) {
+        edges.add(edgeKey(path[step - 1], path[step]));
+      }
+      carved++;
+      graph = adjacency(size, edges);
+      if (canReachWhileSkipping(graph, actor, home, checkpoint)) break;
+    }
+  }
+  return carved;
+}
+
+/**
+ * Every intermediate required stop must be skippable on some actor→home route.
+ * Pass `alsoBlocked` (forbidden/distractor cells) after placement so the skip
+ * route is drawable without also triggering wrong_target.
+ */
+function orderCheckpointsSkippable(
+  graph: Map<string, Cell[]>,
+  requiredCells: Cell[],
+  alsoBlocked: Set<string> = new Set()
+): boolean {
+  if (requiredCells.length < 3) return true;
+  const actor = requiredCells[0];
+  const home = requiredCells[requiredCells.length - 1];
+  for (let i = 1; i < requiredCells.length - 1; i++) {
+    if (!canReachWhileSkipping(graph, actor, home, requiredCells[i], alsoBlocked)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 type CorridorCandidate = {
   cell: Cell;
   attachment: Cell;
@@ -1385,7 +1498,12 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
       false
     );
   }
+  // Order missions need actor→home routes that skip each intermediate stop;
+  // otherwise 先…再… cannot fail as wrong_order (checkpoint is a cut-vertex).
+  // Forbidden-cell clearance is re-checked after distractor placement below.
+  ensureOrderSkipBypasses(profile.size, treeEdges, route, requiredCells, rng);
   graph = adjacency(profile.size, treeEdges);
+  if (!orderCheckpointsSkippable(graph, requiredCells)) return null;
 
   const info = branchInfo(graph, route);
   const routeLast = Math.max(1, route.length - 1);
@@ -1426,6 +1544,9 @@ function makeCandidate(template: Level, profile: MazeProfile, seed: number): Gen
       .filter((cell): cell is Cell => Boolean(cell))
       .map(key)
   );
+  // Skip route must avoid forbidden landmarks — otherwise "home first" only
+  // fails as wrong_target and order teaching collapses to item contrast.
+  if (!orderCheckpointsSkippable(graph, requiredCells, forbiddenCells)) return null;
   let shortestRouteSteps = 0;
   for (let index = 1; index < requiredCells.length; index++) {
     const stageSteps = shortestAllowedSteps(
