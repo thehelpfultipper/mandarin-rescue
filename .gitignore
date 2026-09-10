@@ -31,3 +31,6 @@ Thumbs.db
 .vite/
 .cache/
 .turbo/
+
+# Local demo prep (not for remote)
+docs/NERDY_HACKATHON.md
