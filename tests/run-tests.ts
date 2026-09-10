@@ -9,7 +9,7 @@ import { boardGeometryKey, instantiateLevel } from '../src/lib/boardVariants';
 import { GeneratedMazeLevel, getMazeProfile } from '../src/lib/mazeGenerator';
 import { orderedContactsAlongPath, pathTouchesPoint, pathTouchesPolyline } from '../src/lib/pathGeometry';
 import { getScreenSpaceBarrierContact, barrierSeparatesPoints, segmentCrossesBarrier } from '../src/lib/mazeInteractionGeometry';
-import { adaptiveRuntimeId } from '../src/lib/adaptClient';
+import { adaptiveRuntimeId, adaptRequestFingerprint } from '../src/lib/adaptClient';
 import {
   isValidLevelResponse,
   parseModelJson,
@@ -751,6 +751,30 @@ runTest('Validate Repeated Adaptive Source IDs Receive Unique Runtime IDs', () =
   const second = adaptiveRuntimeId('lvl_fallback_1', 1_800_000_000_000, 2);
   if (first === second || !first.startsWith('adaptive_lvl_fallback_1_')) {
     throw new Error('Repeated adaptive source IDs can still retain the previous board instance');
+  }
+});
+
+runTest('Validate Adapt Request Fingerprints Ignore Irrelevant Progress Fields', () => {
+  const base = {
+    completedLevelIds: ['lvl_1', 'lvl_2'],
+    settings: { soundEnabled: true },
+    vocabularyAttempts: { 狗: { success: 1, failure: 0 } },
+    adaptiveModel: { hanziToMeaning: { 狗: { success: 1, failure: 0 } } },
+  };
+  const samePedagogy = {
+    ...base,
+    settings: { soundEnabled: true, pinyinToggle: false, translationToggle: true },
+    listenedChars: ['狗'],
+  };
+  const differentSound = {
+    ...base,
+    settings: { soundEnabled: false },
+  };
+  if (adaptRequestFingerprint(base) !== adaptRequestFingerprint(samePedagogy as typeof base)) {
+    throw new Error('Fingerprint changed when only non-adapt UI fields differed');
+  }
+  if (adaptRequestFingerprint(base) === adaptRequestFingerprint(differentSound)) {
+    throw new Error('Fingerprint ignored silentPlay / soundEnabled');
   }
 });
 

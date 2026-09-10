@@ -26,14 +26,19 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { GameCanvas } from './components/GameCanvas';
-import { adaptEndpoint, adaptiveRuntimeId } from './lib/adaptClient';
+import { adaptEndpoint, adaptiveRuntimeId, adaptRequestFingerprint } from './lib/adaptClient';
 
 export default function App() {
   const adaptiveSequenceRef = useRef(0);
   const spokenClueRef = useRef<string | null>(null);
   const preloadInFlightRef = useRef(false);
   const queuedPreloadProgressRef = useRef<PlayerProgress | null>(null);
+  const queuedPreloadForceRef = useRef(false);
   const latestPreloadRequestRef = useRef(0);
+  const preloadAbortRef = useRef<AbortController | null>(null);
+  const inFlightFingerprintRef = useRef<string | null>(null);
+  const preloadedFingerprintRef = useRef<string | null>(null);
+  const preloadedLevelRef = useRef<Level | null>(null);
   const isOnline = useOnlineStatus();
   
   // App states
@@ -76,14 +81,48 @@ export default function App() {
     };
   };
 
-  // Preload next adaptive level silently in the background
-  const preloadNextAdaptiveLevel = async (currentProgress: PlayerProgress) => {
-    const requestVersion = ++latestPreloadRequestRef.current;
-    if (preloadInFlightRef.current) {
-      queuedPreloadProgressRef.current = currentProgress;
+  const clearPreloadedRescue = () => {
+    preloadedLevelRef.current = null;
+    preloadedFingerprintRef.current = null;
+    setPreloadedLevel(null);
+    setPreloadedRationale(null);
+    setPreloadedFraming(null);
+  };
+
+  // Preload next adaptive level silently in the background (deduped — one Gemini call per learner state)
+  const preloadNextAdaptiveLevel = async (
+    currentProgress: PlayerProgress,
+    options?: { force?: boolean; signal?: AbortSignal },
+  ) => {
+    const fingerprint = adaptRequestFingerprint(currentProgress);
+    const force = options?.force === true;
+
+    if (!force && preloadedLevelRef.current && preloadedFingerprintRef.current === fingerprint) {
       return;
     }
+    if (preloadInFlightRef.current) {
+      // Identical in-flight request: keep the one already paying for tokens.
+      if (inFlightFingerprintRef.current === fingerprint && !force) {
+        return;
+      }
+      // Newer learner state (or forced refresh) supersedes the in-flight call.
+      queuedPreloadProgressRef.current = currentProgress;
+      queuedPreloadForceRef.current = force;
+      preloadAbortRef.current?.abort();
+      return;
+    }
+
+    const requestVersion = ++latestPreloadRequestRef.current;
+    const controller = new AbortController();
+    preloadAbortRef.current = controller;
+    const onExternalAbort = () => controller.abort();
+    options?.signal?.addEventListener('abort', onExternalAbort, { once: true });
+    if (options?.signal?.aborted) {
+      controller.abort();
+    }
+
     preloadInFlightRef.current = true;
+    inFlightFingerprintRef.current = fingerprint;
     setIsPreloading(true);
     setErrorMsg(null);
 
@@ -102,6 +141,7 @@ export default function App() {
       const res = await fetch(adaptEndpoint(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           completedLevelCount: currentProgress.completedLevelIds.length,
           recentlyStruggledChars: reviewChars,
@@ -112,7 +152,7 @@ export default function App() {
       });
 
       const data = await res.json();
-      if (requestVersion !== latestPreloadRequestRef.current) return;
+      if (requestVersion !== latestPreloadRequestRef.current || controller.signal.aborted) return;
       if (res.ok && data.suggestedLevel) {
         const parsedLevel = LevelSchema.safeParse(data.suggestedLevel);
         if (!parsedLevel.success) {
@@ -122,6 +162,8 @@ export default function App() {
         if (suggestedLevel.isAudioRequired && !currentProgress.settings.soundEnabled) {
           throw new Error('AI generated an audio level during silent play');
         }
+        preloadedLevelRef.current = suggestedLevel;
+        preloadedFingerprintRef.current = fingerprint;
         setPreloadedLevel(suggestedLevel);
         setPreloadedRationale(typeof data.rationale === 'string' ? data.rationale : null);
         const whyMandarinMatters =
@@ -142,22 +184,32 @@ export default function App() {
         throw new Error(data.error || 'Invalid API response');
       }
     } catch (err: any) {
-      if (requestVersion !== latestPreloadRequestRef.current) return;
+      if (controller.signal.aborted || requestVersion !== latestPreloadRequestRef.current) return;
       console.warn('Silent preloading failed or bypassed. Backing up to next uncompleted curated level:', err);
       const isSound = currentProgress.settings.soundEnabled;
       const fallbackLevel = DEFAULT_LEVELS.find(l => (!l.isAudioRequired || isSound) && !currentProgress.completedLevelIds.includes(l.id))
         || DEFAULT_LEVELS.find(l => !l.isAudioRequired || isSound)
         || DEFAULT_LEVELS[0];
-      setPreloadedLevel(asAdaptiveInstance(fallbackLevel));
+      const fallbackInstance = asAdaptiveInstance(fallbackLevel);
+      preloadedLevelRef.current = fallbackInstance;
+      preloadedFingerprintRef.current = fingerprint;
+      setPreloadedLevel(fallbackInstance);
       setPreloadedRationale(null);
       setPreloadedFraming(fallbackLevel.missionFraming || 'Practice another rescue with the words you have been learning.');
     } finally {
+      options?.signal?.removeEventListener('abort', onExternalAbort);
+      if (preloadAbortRef.current === controller) {
+        preloadAbortRef.current = null;
+      }
       preloadInFlightRef.current = false;
+      inFlightFingerprintRef.current = null;
       const queuedProgress = queuedPreloadProgressRef.current;
+      const queuedForce = queuedPreloadForceRef.current;
       queuedPreloadProgressRef.current = null;
+      queuedPreloadForceRef.current = false;
       if (queuedProgress) {
-        void preloadNextAdaptiveLevel(queuedProgress);
-      } else {
+        void preloadNextAdaptiveLevel(queuedProgress, { force: queuedForce });
+      } else if (!controller.signal.aborted) {
         setIsPreloading(false);
       }
     }
@@ -165,6 +217,7 @@ export default function App() {
 
   // Load persistence progress on mount
   useEffect(() => {
+    const mountAbort = new AbortController();
     const loaded = loadPlayerProgress();
     // First-run guided assists: keep pinyin/translation on until learner has traction
     let next = loaded;
@@ -186,7 +239,11 @@ export default function App() {
     setMissionFraming(latestUncompleted.missionFraming || null);
     setCurrentView('puzzle');
     setShowDrawCoach(!loadDrawCoachDismissed());
-    preloadNextAdaptiveLevel(next);
+    void preloadNextAdaptiveLevel(next, { force: true, signal: mountAbort.signal });
+    return () => {
+      mountAbort.abort();
+      preloadAbortRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -209,11 +266,8 @@ export default function App() {
       }
     };
     updateProgress(updated);
-    
-    if (key === 'soundEnabled') {
-      setPreloadedLevel(null);
-      preloadNextAdaptiveLevel(updated);
-    }
+    // Assists only — never regenerate the current or preloaded board.
+    // Silent-first contracts mean sound on/off does not change puzzle geometry.
   };
 
   const handleClueSpoken = (clue: string) => {
@@ -234,10 +288,8 @@ export default function App() {
       setMissionFraming(preloadedFraming || preloadedLevel.missionFraming || null);
       setCurrentView('puzzle');
       
-      setPreloadedLevel(null);
-      setPreloadedRationale(null);
-      setPreloadedFraming(null);
-      preloadNextAdaptiveLevel(progress);
+      clearPreloadedRescue();
+      void preloadNextAdaptiveLevel(progress, { force: true });
     } else {
       const fallbackLevel = DEFAULT_LEVELS.find(l => (!l.isAudioRequired || isSound) && !progress.completedLevelIds.includes(l.id))
         || DEFAULT_LEVELS.find(l => !l.isAudioRequired || isSound)
@@ -247,7 +299,7 @@ export default function App() {
       setAdaptationRationale(null);
       setMissionFraming(fallbackInstance.missionFraming || 'Another rescue — practice what you know.');
       setCurrentView('puzzle');
-      preloadNextAdaptiveLevel(progress);
+      void preloadNextAdaptiveLevel(progress, { force: true });
     }
   };
 
@@ -393,7 +445,7 @@ export default function App() {
       setSelectedLevel(next);
       setAdaptationRationale(null);
       setMissionFraming(next.missionFraming || null);
-      preloadNextAdaptiveLevel(progress);
+      // Completion/failure already refreshed preload for the latest learner state.
     } else {
       // End of curated arc or already on adapted level → next rescue from preload
       consumeNextRescue();
