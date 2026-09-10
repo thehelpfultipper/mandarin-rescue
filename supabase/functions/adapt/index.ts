@@ -298,7 +298,10 @@ ${JSON.stringify(REVIEWED_EDGE_NODE_VOCABULARY)}
         parsed.suggestedLevel.missionFraming =
           parsed.levelPlan?.whyMandarinMatters || "Another rescue — practice what you know.";
       }
-      if (isValidLevelResponse(parsed)) return parsed;
+      if (isValidLevelResponse(parsed)) {
+        console.info(`Gemini ${model} produced valid adaptive level`);
+        return parsed;
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === "TimeoutError") {
         console.info(`Gemini ${model} exceeded ${requestTimeoutMs / 1000}s; trying next model`);
@@ -333,10 +336,17 @@ Deno.serve(async (req) => {
 
   try {
     const directed = await callGemini(body, apiKey);
-    if (directed) return json(directed);
+    if (directed) {
+      const level = (directed as { suggestedLevel?: { id?: string; title?: string } }).suggestedLevel;
+      console.info(
+        `Adaptive board served: id=${level?.id ?? "?"} title=${level?.title ?? "?"}`,
+      );
+      return json(directed);
+    }
   } catch (err) {
     console.error("Director error:", err);
   }
 
+  console.info("Serving fallback board");
   return json(pickFallback(body.completedLevelCount || 0));
 });
