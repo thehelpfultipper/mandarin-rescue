@@ -1,7 +1,13 @@
 {
   "name": "mandarin-rescue",
-  "private": true,
-  "version": "0.1.0",
+  "private": false,
+  "version": "1.0.0",
+  "author": "Klea Merkuri",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thehelpfultipper/mandarin-rescue.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
